@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RUEating - Food Truck Discovery Platform</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+        
+        .content {
+            padding: 30px;
+        }
+        
+        .section {
+            margin-bottom: 40px;
+        }
+        
+        .section h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.8em;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+        
+        .truck-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .truck-card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            border-left: 5px solid #3498db;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .truck-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        
+        .truck-name {
+            font-size: 1.4em;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        
+        .truck-info {
+            margin-bottom: 8px;
+        }
+        
+        .truck-info strong {
+            color: #34495e;
+        }
+        
+        .cuisine-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin: 10px 0;
+        }
+        
+        .tag {
+            background: #3498db;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 15px;
+            font-size: 0.8em;
+        }
+        
+        .rating {
+            color: #f39c12;
+            font-weight: bold;
+        }
+        
+        .price-tier {
+            color: #27ae60;
+            font-weight: bold;
+        }
+        
+        .form-section {
+            background: #ecf0f1;
+            padding: 25px;
+            border-radius: 10px;
+            margin-top: 30px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #bdc3c7;
+            border-radius: 5px;
+            font-size: 1em;
+            transition: border-color 0.3s ease;
+        }
+        
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+        
+        .btn {
+            background: #3498db;
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background 0.3s ease;
+        }
+        
+        .btn:hover {
+            background: #2980b9;
+        }
+        
+        .btn-success {
+            background: #27ae60;
+        }
+        
+        .btn-success:hover {
+            background: #229954;
+        }
+        
+        .status {
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            font-weight: bold;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #7f8c8d;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #74b9ff, #0984e3);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        
+        .stat-number {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🍔 RUEating</h1>
+            <p>Food Truck Discovery and Recommendation Platform</p>
+            <p style="font-size: 0.9em; margin-top: 10px;">Rutgers MSDS Midterm Demo</p>
+        </div>
+        
+        <div class="content">
+            <!-- Statistics Section -->
+            <div class="section">
+                <h2>📊 Platform Statistics</h2>
+                <div class="stats">
+                    <div class="stat-card">
+                        <div class="stat-number" id="totalTrucks">-</div>
+                        <div class="stat-label">Total Food Trucks</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="avgRating">-</div>
+                        <div class="stat-label">Average Rating</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="apiStatus">-</div>
+                        <div class="stat-label">API Status</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Food Trucks Section -->
+            <div class="section">
+                <h2>🚚 Food Trucks</h2>
+                <div id="trucksContainer" class="loading">
+                    Loading food trucks...
+                </div>
+            </div>
+            
+            <!-- Add New Truck Section -->
+            <div class="section">
+                <h2>➕ Add New Food Truck</h2>
+                <div class="form-section">
+                    <form id="addTruckForm">
+                        <div class="form-group">
+                            <label for="truckName">Truck Name:</label>
+                            <input type="text" id="truckName" name="name" required placeholder="e.g., Fusion Kitchen">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="cuisineTags">Cuisine Tags (comma-separated):</label>
+                            <input type="text" id="cuisineTags" name="cuisine_tags" placeholder="e.g., Asian, Fusion, Japanese">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="priceTier">Price Tier:</label>
+                            <select id="priceTier" name="price_tier">
+                                <option value="$">$ (Budget)</option>
+                                <option value="$$" selected>$$ (Moderate)</option>
+                                <option value="$$$">$$$ (Expensive)</option>
+                                <option value="$$$$">$$$$ (Very Expensive)</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="avgRating">Average Rating (0-5):</label>
+                            <input type="number" id="avgRating" name="avg_rating" min="0" max="5" step="0.1" value="4.0">
+                        </div>
+                        
+                        <button type="submit" class="btn btn-success">Add Food Truck</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3000';
+        
+        // Load initial data
+        document.addEventListener('DOMContentLoaded', function() {
+            loadTrucks();
+            checkAPIHealth();
+        });
+        
+        // Check API health
+        async function checkAPIHealth() {
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+                document.getElementById('apiStatus').textContent = '✅ Online';
+                document.getElementById('apiStatus').style.color = '#27ae60';
+            } catch (error) {
+                document.getElementById('apiStatus').textContent = '❌ Offline';
+                document.getElementById('apiStatus').style.color = '#e74c3c';
+            }
+        }
+        
+        // Load all trucks
+        async function loadTrucks() {
+            try {
+                const response = await fetch(`${API_BASE}/trucks`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayTrucks(data.data);
+                    updateStats(data.data);
+                } else {
+                    showError('Failed to load food trucks');
+                }
+            } catch (error) {
+                showError('Error connecting to API: ' + error.message);
+            }
+        }
+        
+        // Display trucks in the UI
+        function displayTrucks(trucks) {
+            const container = document.getElementById('trucksContainer');
+            
+            if (trucks.length === 0) {
+                container.innerHTML = '<p>No food trucks found.</p>';
+                return;
+            }
+            
+            const trucksHTML = trucks.map(truck => `
+                <div class="truck-card">
+                    <div class="truck-name">${truck.name}</div>
+                    <div class="truck-info">
+                        <strong>ID:</strong> ${truck.truck_id}
+                    </div>
+                    <div class="truck-info">
+                        <strong>Price Tier:</strong> <span class="price-tier">${truck.price_tier}</span>
+                    </div>
+                    <div class="truck-info">
+                        <strong>Rating:</strong> <span class="rating">⭐ ${truck.avg_rating}</span>
+                    </div>
+                    <div class="truck-info">
+                        <strong>Added:</strong> ${new Date(truck.created_at).toLocaleDateString()}
+                    </div>
+                    <div class="cuisine-tags">
+                        ${Array.isArray(truck.cuisine_tags) ? 
+                            truck.cuisine_tags.map(tag => `<span class="tag">${tag}</span>`).join('') :
+                            `<span class="tag">${truck.cuisine_tags}</span>`
+                        }
+                    </div>
+                </div>
+            `).join('');
+            
+            container.innerHTML = `<div class="truck-grid">${trucksHTML}</div>`;
+        }
+        
+        // Update statistics
+        function updateStats(trucks) {
+            document.getElementById('totalTrucks').textContent = trucks.length;
+            
+            if (trucks.length > 0) {
+                const avgRating = trucks.reduce((sum, truck) => sum + parseFloat(truck.avg_rating), 0) / trucks.length;
+                document.getElementById('avgRating').textContent = avgRating.toFixed(1);
+            } else {
+                document.getElementById('avgRating').textContent = '0.0';
+            }
+        }
+        
+        // Handle form submission
+        document.getElementById('addTruckForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const truckData = {
+                name: formData.get('name'),
+                cuisine_tags: formData.get('cuisine_tags').split(',').map(tag => tag.trim()).filter(tag => tag),
+                price_tier: formData.get('price_tier'),
+                avg_rating: parseFloat(formData.get('avg_rating'))
+            };
+            
+            try {
+                const response = await fetch(`${API_BASE}/trucks`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(truckData)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showSuccess('Food truck added successfully!');
+                    e.target.reset();
+                    loadTrucks(); // Reload the list
+                } else {
+                    showError('Failed to add food truck: ' + result.error);
+                }
+            } catch (error) {
+                showError('Error adding food truck: ' + error.message);
+            }
+        });
+        
+        // Show success message
+        function showSuccess(message) {
+            const statusDiv = document.createElement('div');
+            statusDiv.className = 'status success';
+            statusDiv.textContent = message;
+            document.querySelector('.form-section').appendChild(statusDiv);
+            
+            setTimeout(() => {
+                statusDiv.remove();
+            }, 3000);
+        }
+        
+        // Show error message
+        function showError(message) {
+            const statusDiv = document.createElement('div');
+            statusDiv.className = 'status error';
+            statusDiv.textContent = message;
+            document.querySelector('.form-section').appendChild(statusDiv);
+            
+            setTimeout(() => {
+                statusDiv.remove();
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
