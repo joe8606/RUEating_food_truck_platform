@@ -100,6 +100,14 @@ curl http://localhost:3000/trucks/1
 5. **Verify Addition**: GET /trucks to see the new truck
 6. **Database Interaction**: Show successful data persistence
 
+## Screenshots
+
+### Demo Screenshot 1
+![Demo Screenshot 1](img/demo01.png)
+
+### Demo Screenshot 2
+![Demo Screenshot 2](img/demo02.png)
+
 ## Troubleshooting
 
 ### Common Issues
