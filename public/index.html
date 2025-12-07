@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RUEating - Food Truck Discovery Platform</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin=""/>
     <style>
         * {
             margin: 0;
@@ -225,6 +229,407 @@
             font-size: 1.1em;
             opacity: 0.9;
         }
+
+        /* Map styles */
+        #map {
+            height: 500px;
+            width: 100%;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border: 2px solid #bdc3c7;
+        }
+
+        .search-section {
+            background: #ecf0f1;
+            padding: 25px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+        }
+
+        .search-row {
+            display: grid;
+            grid-template-columns: 2fr 2fr 1fr 1fr auto;
+            gap: 15px;
+            align-items: end;
+        }
+
+        .distance {
+            color: #27ae60;
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+
+        .location-info {
+            color: #7f8c8d;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+
+        .btn-primary {
+            background: #3498db;
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background 0.3s ease;
+        }
+
+        .btn-primary:hover {
+            background: #2980b9;
+        }
+
+        .btn-secondary {
+            background: #95a5a6;
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background 0.3s ease;
+        }
+
+        .btn-secondary:hover {
+            background: #7f8c8d;
+        }
+
+        .map-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        @media (max-width: 768px) {
+            .search-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Tab Styles */
+        .tabs {
+            display: flex;
+            background: #ecf0f1;
+            border-radius: 10px 10px 0 0;
+            padding: 0;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        .tab-button {
+            flex: 1;
+            padding: 15px 30px;
+            background: #bdc3c7;
+            border: none;
+            cursor: pointer;
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #2c3e50;
+            transition: all 0.3s ease;
+            border-bottom: 3px solid transparent;
+        }
+
+        .tab-button:hover {
+            background: #95a5a6;
+            color: white;
+        }
+
+        .tab-button.active {
+            background: white;
+            color: #3498db;
+            border-bottom: 3px solid #3498db;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .vendor-dashboard {
+            padding: 20px;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .dashboard-card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            border-left: 5px solid #3498db;
+        }
+
+        .dashboard-card h3 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: auto;
+            padding: 30px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #ecf0f1;
+        }
+
+        .modal-header h2 {
+            color: #2c3e50;
+            margin: 0;
+        }
+
+        .close {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            line-height: 20px;
+        }
+
+        .close:hover {
+            color: #000;
+        }
+
+        .detail-section {
+            margin-bottom: 25px;
+        }
+
+        .detail-section h3 {
+            color: #3498db;
+            margin-bottom: 10px;
+            font-size: 1.2em;
+        }
+
+        .detail-item {
+            margin-bottom: 8px;
+            padding: 8px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+
+        .detail-item strong {
+            color: #34495e;
+        }
+
+        .menu-item {
+            padding: 10px;
+            margin-bottom: 10px;
+            background: #f8f9fa;
+            border-left: 4px solid #3498db;
+            border-radius: 5px;
+        }
+
+        .menu-item-name {
+            font-weight: bold;
+            color: #2c3e50;
+            font-size: 1.1em;
+        }
+
+        .menu-item-price {
+            color: #27ae60;
+            font-weight: bold;
+            float: right;
+        }
+
+        .review-item {
+            padding: 15px;
+            margin-bottom: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #f39c12;
+        }
+
+        .review-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .review-rating {
+            color: #f39c12;
+            font-weight: bold;
+        }
+
+        .schedule-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            margin-bottom: 8px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+
+        .truck-card {
+            cursor: pointer;
+        }
+
+        .truck-card:hover {
+            border-left-color: #e74c3c;
+        }
+
+        /* Review and Order Styles */
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            margin-bottom: 20px;
+        }
+
+        .btn-review {
+            background: #f39c12;
+            color: white;
+        }
+
+        .btn-review:hover {
+            background: #e67e22;
+        }
+
+        .btn-order {
+            background: #27ae60;
+            color: white;
+        }
+
+        .btn-order:hover {
+            background: #229954;
+        }
+
+        .review-form {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+
+        .star-rating {
+            display: flex;
+            gap: 5px;
+            margin: 10px 0;
+        }
+
+        .star {
+            font-size: 2em;
+            color: #ddd;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .star:hover,
+        .star.active {
+            color: #f39c12;
+        }
+
+        .order-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+
+        .order-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            margin-bottom: 10px;
+            background: white;
+            border-radius: 5px;
+        }
+
+        .quantity-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .quantity-btn {
+            width: 30px;
+            height: 30px;
+            border: 1px solid #bdc3c7;
+            background: white;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .quantity-input {
+            width: 50px;
+            text-align: center;
+            border: 1px solid #bdc3c7;
+            border-radius: 5px;
+            padding: 5px;
+        }
+
+        .order-summary {
+            margin-top: 20px;
+            padding: 15px;
+            background: white;
+            border-radius: 5px;
+            border-top: 3px solid #27ae60;
+        }
+
+        .order-total {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #27ae60;
+            text-align: right;
+            margin-top: 10px;
+        }
+
+        .truck-image {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            border-radius: 8px 8px 0 0;
+            margin: -20px -20px 15px -20px;
+        }
+
+        .modal-truck-image {
+            width: 100%;
+            max-height: 300px;
+            object-fit: cover;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
     </style>
 </head>
 <body>
@@ -235,23 +640,49 @@
             <p style="font-size: 0.9em; margin-top: 10px;">Rutgers MSDS Midterm Demo</p>
         </div>
         
+        <!-- Tab Navigation -->
+        <div class="tabs">
+            <button class="tab-button active" onclick="switchTab('consumer')">
+                👤 Consumer - Find Food Trucks
+            </button>
+            <button class="tab-button" onclick="switchTab('orders')">
+                📦 My Orders
+            </button>
+            <button class="tab-button" onclick="switchTab('vendor')">
+                🏪 Vendor - Manage Your Truck
+            </button>
+        </div>
+        
         <div class="content">
-            <!-- Statistics Section -->
+            <!-- Consumer Tab Content -->
+            <div id="consumer-tab" class="tab-content active">
+            <!-- Location Search & Map Section -->
             <div class="section">
-                <h2>📊 Platform Statistics</h2>
-                <div class="stats">
-                    <div class="stat-card">
-                        <div class="stat-number" id="totalTrucks">-</div>
-                        <div class="stat-label">Total Food Trucks</div>
+                <h2>📍 Find Food Trucks</h2>
+                <div class="search-section">
+                    <div class="search-row" style="grid-template-columns: 2fr 1fr auto;">
+                        <div class="form-group">
+                            <label for="searchCuisine">Search by Cuisine Type:</label>
+                            <input type="text" id="searchCuisine" list="cuisineList" placeholder="e.g., Mexican, Asian, Italian" autocomplete="off">
+                            <datalist id="cuisineList"></datalist>
+                        </div>
+                        <div class="form-group">
+                            <label for="searchRadius">Radius (km):</label>
+                            <input type="number" id="searchRadius" min="0.5" max="50" step="0.5" value="5">
+                        </div>
+                        <div class="form-group">
+                            <button type="button" class="btn btn-primary" onclick="searchByCuisine()">🔍 Search</button>
+                            <button type="button" class="btn btn-secondary" onclick="useCurrentLocation()" style="margin-top: 10px; width: 100%;">📍 My Location</button>
+                        </div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-number" id="avgRating">-</div>
-                        <div class="stat-label">Average Rating</div>
+                    <div class="map-controls">
+                        <button type="button" class="btn btn-secondary" onclick="showAllTrucks()">Show All Trucks</button>
+                        <button type="button" class="btn btn-secondary" onclick="centerMapRutgers()">Center on Rutgers</button>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-number" id="apiStatus">-</div>
-                        <div class="stat-label">API Status</div>
-                    </div>
+                </div>
+                <div id="map"></div>
+                <div id="mapStatus" class="loading" style="text-align: center; margin-top: 10px;">
+                    Click "Show All Trucks" or "Search" to view food trucks on the map
                 </div>
             </div>
             
@@ -262,51 +693,469 @@
                     Loading food trucks...
                 </div>
             </div>
+            </div>
+            <!-- End Consumer Tab Content -->
             
-            <!-- Add New Truck Section -->
-            <div class="section">
-                <h2>➕ Add New Food Truck</h2>
-                <div class="form-section">
-                    <form id="addTruckForm">
-                        <div class="form-group">
-                            <label for="truckName">Truck Name:</label>
-                            <input type="text" id="truckName" name="name" required placeholder="e.g., Fusion Kitchen">
+            <!-- My Orders Tab Content -->
+            <div id="orders-tab" class="tab-content">
+                <div class="section">
+                    <h2>📦 My Orders</h2>
+                    <div class="search-section">
+                        <div class="search-row" style="grid-template-columns: 2fr 2fr 1fr;">
+                            <div class="form-group">
+                                <label for="orderSearchName">Search by Name:</label>
+                                <input type="text" id="orderSearchName" placeholder="Enter your name">
+                            </div>
+                            <div class="form-group">
+                                <label for="orderSearchPhone">Search by Phone:</label>
+                                <input type="tel" id="orderSearchPhone" placeholder="(732) 555-0123">
+                            </div>
+                            <div class="form-group">
+                                <button type="button" class="btn btn-primary" onclick="loadMyOrders()" style="margin-top: 25px;">🔍 Search Orders</button>
+                            </div>
                         </div>
-                        
-                        <div class="form-group">
-                            <label for="cuisineTags">Cuisine Tags (comma-separated):</label>
-                            <input type="text" id="cuisineTags" name="cuisine_tags" placeholder="e.g., Asian, Fusion, Japanese">
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="priceTier">Price Tier:</label>
-                            <select id="priceTier" name="price_tier">
-                                <option value="$">$ (Budget)</option>
-                                <option value="$$" selected>$$ (Moderate)</option>
-                                <option value="$$$">$$$ (Expensive)</option>
-                                <option value="$$$$">$$$$ (Very Expensive)</option>
-                            </select>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="avgRating">Average Rating (0-5):</label>
-                            <input type="number" id="avgRating" name="avg_rating" min="0" max="5" step="0.1" value="4.0">
-                        </div>
-                        
-                        <button type="submit" class="btn btn-success">Add Food Truck</button>
-                    </form>
+                    </div>
+                    <div id="ordersContainer" class="loading">
+                        Enter your name or phone number to view your orders
+                    </div>
                 </div>
+            </div>
+            <!-- End My Orders Tab Content -->
+            
+            <!-- Vendor Tab Content -->
+            <div id="vendor-tab" class="tab-content">
+                <div class="vendor-dashboard">
+                    <!-- Vendor Statistics -->
+                    <div class="section">
+                        <h2>📊 My Food Truck Dashboard</h2>
+                        <div class="dashboard-grid">
+                            <div class="dashboard-card">
+                                <h3>🚚 My Trucks</h3>
+                                <div id="vendorTruckCount" style="font-size: 2em; color: #3498db; font-weight: bold;">-</div>
+                                <p>Total registered trucks</p>
+                            </div>
+                            <div class="dashboard-card">
+                                <h3>⭐ Average Rating</h3>
+                                <div id="vendorAvgRating" style="font-size: 2em; color: #f39c12; font-weight: bold;">-</div>
+                                <p>Across all your trucks</p>
+                            </div>
+                            <div class="dashboard-card">
+                                <h3>💬 Total Reviews</h3>
+                                <div id="vendorReviewCount" style="font-size: 2em; color: #27ae60; font-weight: bold;">-</div>
+                                <p>Customer feedback</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Manage Trucks Section -->
+                    <div class="section">
+                        <h2>🚚 Manage Your Food Trucks</h2>
+                        <div class="form-section">
+                            <h3 style="margin-bottom: 20px;">Register New Food Truck</h3>
+                            <form id="vendorAddTruckForm">
+                                <div class="form-group">
+                                    <label for="vendorTruckName">Truck Name:</label>
+                                    <input type="text" id="vendorTruckName" name="name" required placeholder="e.g., My Awesome Food Truck">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="vendorCuisineTags">Cuisine Tags (comma-separated):</label>
+                                    <input type="text" id="vendorCuisineTags" name="cuisine_tags" placeholder="e.g., Mexican, Latin, Spicy">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="vendorPriceTier">Price Tier:</label>
+                                    <select id="vendorPriceTier" name="price_tier">
+                                        <option value="$">$ (Budget)</option>
+                                        <option value="$$" selected>$$ (Moderate)</option>
+                                        <option value="$$$">$$$ (Expensive)</option>
+                                        <option value="$$$$">$$$$ (Very Expensive)</option>
+                                    </select>
+                                </div>
+                                
+                                <button type="submit" class="btn btn-success">Register Food Truck</button>
+                            </form>
+                        </div>
+                        
+                        <!-- My Trucks List -->
+                        <div class="section" style="margin-top: 30px;">
+                            <h3>My Registered Trucks</h3>
+                            <div id="vendorTrucksList" class="loading">
+                                Loading your trucks...
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Location Management -->
+                    <div class="section">
+                        <h2>📍 Update Truck Location</h2>
+                        <div class="form-section">
+                            <form id="vendorLocationForm">
+                                <div class="form-group">
+                                    <label for="vendorTruckSelect">Select Truck:</label>
+                                    <select id="vendorTruckSelect" name="truck_id" required>
+                                        <option value="">-- Select a truck --</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="vendorLatitude">Latitude:</label>
+                                    <input type="number" id="vendorLatitude" name="latitude" step="0.0001" placeholder="40.5007">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="vendorLongitude">Longitude:</label>
+                                    <input type="number" id="vendorLongitude" name="longitude" step="0.0001" placeholder="-74.4474">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <button type="button" class="btn btn-secondary" onclick="getVendorCurrentLocation()">📍 Use My Current Location</button>
+                                </div>
+                                
+                                <button type="submit" class="btn btn-primary">Update Location</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- End Vendor Tab Content -->
+        </div>
+    </div>
+
+    <!-- Truck Details Modal -->
+    <div id="truckModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTruckName">Food Truck Details</h2>
+                <span class="close" onclick="closeTruckModal()">&times;</span>
+            </div>
+            <div id="modalContent" class="loading">
+                Loading details...
             </div>
         </div>
     </div>
 
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
+
     <script>
         const API_BASE = 'http://localhost:3000';
         
+        // Define updateQuantity in global scope IMMEDIATELY
+        // This must be defined before any HTML is generated that uses it
+        let orderCart = {}; // { truckId: { itemId: quantity } }
+        
+        window.updateQuantity = function(truckId, itemId, change) {
+            console.log('updateQuantity called:', truckId, itemId, change);
+            
+            if (!orderCart[truckId]) {
+                orderCart[truckId] = {};
+            }
+            
+            const qtyInput = document.getElementById(`qty_${truckId}_${itemId}`);
+            if (!qtyInput) {
+                console.error('Quantity input not found:', `qty_${truckId}_${itemId}`);
+                return;
+            }
+            
+            const currentQty = parseInt(qtyInput.value) || 0;
+            const newQty = Math.max(0, currentQty + change);
+            
+            console.log('Updating quantity from', currentQty, 'to', newQty);
+            
+            qtyInput.value = newQty;
+            
+            if (newQty > 0) {
+                orderCart[truckId][itemId] = newQty;
+            } else {
+                delete orderCart[truckId][itemId];
+            }
+            
+            // Call updateOrderSummary if it exists
+            if (typeof updateOrderSummary === 'function') {
+                updateOrderSummary(truckId);
+            }
+        };
+        
+        // Map variables
+        let map;
+        let userMarker;
+        let truckMarkers = [];
+        const RUTGERS_CENTER = [40.5007, -74.4474]; // Rutgers University, New Brunswick, NJ
+        
+        // Initialize map
+        function initMap() {
+            map = L.map('map').setView(RUTGERS_CENTER, 13);
+            
+            // Add OpenStreetMap tile layer
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                maxZoom: 19
+            }).addTo(map);
+        }
+        
+        // Clear all markers
+        function clearMarkers() {
+            truckMarkers.forEach(marker => map.removeLayer(marker));
+            truckMarkers = [];
+            if (userMarker) {
+                map.removeLayer(userMarker);
+                userMarker = null;
+            }
+        }
+        
+        // Add truck marker to map
+        function addTruckMarker(truck) {
+            if (!truck.latitude || !truck.longitude) return;
+            
+            const icon = L.divIcon({
+                className: 'custom-truck-marker',
+                html: `<div style="background-color: #ff6b6b; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);">🚚</div>`,
+                iconSize: [30, 30],
+                iconAnchor: [15, 15]
+            });
+            
+            const marker = L.marker([truck.latitude, truck.longitude], { icon: icon })
+                .addTo(map)
+                .bindPopup(`
+                    <strong>${truck.name}</strong><br>
+                    ${truck.distance !== undefined ? `<b>Distance:</b> ${truck.distance} km<br>` : ''}
+                    <b>Rating:</b> ⭐ ${truck.avg_rating}<br>
+                    <b>Price:</b> ${truck.price_tier}<br>
+                    ${truck.address ? `<b>Location:</b> ${truck.address}<br>` : ''}
+                    <button onclick="showTruckDetails('${truck.truck_id}'); map.closePopup();" style="margin-top: 8px; padding: 5px 10px; background: #3498db; color: white; border: none; border-radius: 3px; cursor: pointer;">View Details</button>
+                `);
+            
+            truckMarkers.push(marker);
+        }
+        
+        // Add user location marker
+        function addUserMarker(lat, lng) {
+            if (userMarker) {
+                map.removeLayer(userMarker);
+            }
+            
+            const icon = L.divIcon({
+                className: 'custom-user-marker',
+                html: `<div style="background-color: #3498db; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);">📍</div>`,
+                iconSize: [25, 25],
+                iconAnchor: [12.5, 12.5]
+            });
+            
+            userMarker = L.marker([lat, lng], { icon: icon })
+                .addTo(map)
+                .bindPopup('Your Location');
+        }
+        
+        // Load available cuisine types
+        async function loadCuisineTypes() {
+            try {
+                const response = await fetch(`${API_BASE}/trucks/cuisine-types`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    const datalist = document.getElementById('cuisineList');
+                    datalist.innerHTML = '';
+                    data.data.forEach(cuisine => {
+                        const option = document.createElement('option');
+                        option.value = cuisine;
+                        datalist.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading cuisine types:', error);
+            }
+        }
+        
+        // Search trucks by cuisine type
+        async function searchByCuisine() {
+            const cuisine = document.getElementById('searchCuisine').value.trim();
+            
+            if (!cuisine) {
+                showError('Please enter a cuisine type to search');
+                return;
+            }
+            
+            try {
+                document.getElementById('mapStatus').textContent = `Searching for ${cuisine} food trucks...`;
+                document.getElementById('mapStatus').className = 'loading';
+                
+                const params = new URLSearchParams({
+                    cuisine: cuisine
+                });
+                
+                // Add user location if available
+                if (userMarker) {
+                    const latlng = userMarker.getLatLng();
+                    params.append('lat', latlng.lat);
+                    params.append('lng', latlng.lng);
+                }
+                
+                const response = await fetch(`${API_BASE}/trucks/by-cuisine?${params}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    clearMarkers();
+                    
+                    // Re-add user marker if it exists
+                    if (userMarker) {
+                        const latlng = userMarker.getLatLng();
+                        addUserMarker(latlng.lat, latlng.lng);
+                    }
+                    
+                    data.data.forEach(truck => {
+                        if (truck.latitude && truck.longitude) {
+                            addTruckMarker(truck);
+                        }
+                    });
+                    
+                    displayTrucks(data.data);
+                    updateStats(data.data);
+                    
+                    // Fit map to show all markers
+                    if (data.data.length > 0) {
+                        const bounds = L.latLngBounds();
+                        data.data.forEach(truck => {
+                            if (truck.latitude && truck.longitude) {
+                                bounds.extend([truck.latitude, truck.longitude]);
+                            }
+                        });
+                        if (userMarker) {
+                            const latlng = userMarker.getLatLng();
+                            bounds.extend([latlng.lat, latlng.lng]);
+                        }
+                        map.fitBounds(bounds, { padding: [50, 50] });
+                    }
+                    
+                    const locationText = userMarker ? ' near you' : '';
+                    document.getElementById('mapStatus').textContent = `Found ${data.data.length} ${cuisine} food truck(s)${locationText}`;
+                    document.getElementById('mapStatus').className = 'status success';
+                } else {
+                    showError('Search failed: ' + data.error);
+                    document.getElementById('mapStatus').className = 'status error';
+                }
+            } catch (error) {
+                showError('Error searching: ' + error.message);
+                document.getElementById('mapStatus').className = 'status error';
+            }
+        }
+        
+        // Show all trucks on map
+        async function showAllTrucks() {
+            try {
+                document.getElementById('mapStatus').textContent = 'Loading all food trucks...';
+                document.getElementById('mapStatus').className = 'loading';
+                
+                const response = await fetch(`${API_BASE}/trucks/all-with-location`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.success && data.data) {
+                    clearMarkers();
+                    
+                    let trucksWithLocation = 0;
+                    data.data.forEach(truck => {
+                        if (truck.latitude && truck.longitude) {
+                            addTruckMarker(truck);
+                            trucksWithLocation++;
+                        }
+                    });
+                    
+                    displayTrucks(data.data);
+                    updateStats(data.data);
+                    
+                    // Fit map to show all trucks
+                    if (trucksWithLocation > 0) {
+                        const bounds = L.latLngBounds();
+                        data.data.forEach(truck => {
+                            if (truck.latitude && truck.longitude) {
+                                bounds.extend([truck.latitude, truck.longitude]);
+                            }
+                        });
+                        map.fitBounds(bounds, { padding: [50, 50] });
+                    }
+                    
+                    document.getElementById('mapStatus').textContent = `Showing ${trucksWithLocation} food truck(s) on map`;
+                    document.getElementById('mapStatus').className = 'status success';
+                } else {
+                    const errorMsg = data.error || 'Failed to load trucks';
+                    showError(errorMsg);
+                    document.getElementById('mapStatus').textContent = errorMsg;
+                    document.getElementById('mapStatus').className = 'status error';
+                }
+            } catch (error) {
+                console.error('Error in showAllTrucks:', error);
+                const errorMsg = 'Error loading trucks: ' + error.message;
+                showError(errorMsg);
+                document.getElementById('mapStatus').textContent = errorMsg;
+                document.getElementById('mapStatus').className = 'status error';
+            }
+        }
+        
+        // Center map on Rutgers
+        function centerMapRutgers() {
+            map.setView(RUTGERS_CENTER, 13);
+        }
+        
+        // Get user's current location
+        function useCurrentLocation() {
+            if (!navigator.geolocation) {
+                showError('Geolocation is not supported by your browser');
+                return;
+            }
+            
+            document.getElementById('mapStatus').textContent = 'Getting your location...';
+            document.getElementById('mapStatus').className = 'loading';
+            
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    
+                    map.setView([lat, lng], 13);
+                    addUserMarker(lat, lng);
+                    
+                    document.getElementById('mapStatus').textContent = 'Location found! Search by cuisine type to find nearby trucks.';
+                    document.getElementById('mapStatus').className = 'status success';
+                    
+                    // Auto-search if cuisine is already entered
+                    const cuisine = document.getElementById('searchCuisine').value.trim();
+                    if (cuisine) {
+                        setTimeout(() => searchByCuisine(), 500);
+                    }
+                },
+                (error) => {
+                    showError('Error getting location: ' + error.message);
+                    document.getElementById('mapStatus').className = 'status error';
+                    // Fallback to Rutgers location
+                    centerMapRutgers();
+                }
+            );
+        }
+        
+        
         // Load initial data
         document.addEventListener('DOMContentLoaded', function() {
+            initMap();
             loadTrucks();
             checkAPIHealth();
+            loadCuisineTypes();
+            
+            // Allow Enter key to trigger search
+            const searchCuisineInput = document.getElementById('searchCuisine');
+            if (searchCuisineInput) {
+                searchCuisineInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        searchByCuisine();
+                    }
+                });
+            }
         });
         
         // Check API health
@@ -349,11 +1198,19 @@
             }
             
             const trucksHTML = trucks.map(truck => `
-                <div class="truck-card">
+                <div class="truck-card" onclick="showTruckDetails('${truck.truck_id}')">
+                    ${truck.image_url ? `<img src="${truck.image_url}" alt="${truck.name}" class="truck-image" onerror="this.style.display='none'">` : ''}
                     <div class="truck-name">${truck.name}</div>
-                    <div class="truck-info">
-                        <strong>ID:</strong> ${truck.truck_id}
-                    </div>
+                    ${truck.distance !== undefined ? `
+                        <div class="truck-info">
+                            <strong>Distance:</strong> <span class="distance">📍 ${truck.distance} km</span>
+                        </div>
+                    ` : ''}
+                    ${truck.address ? `
+                        <div class="truck-info">
+                            <strong>Location:</strong> <span class="location-info">${truck.address}</span>
+                        </div>
+                    ` : ''}
                     <div class="truck-info">
                         <strong>Price Tier:</strong> <span class="price-tier">${truck.price_tier}</span>
                     </div>
@@ -366,7 +1223,7 @@
                     <div class="cuisine-tags">
                         ${Array.isArray(truck.cuisine_tags) ? 
                             truck.cuisine_tags.map(tag => `<span class="tag">${tag}</span>`).join('') :
-                            `<span class="tag">${truck.cuisine_tags}</span>`
+                            `<span class="tag">${truck.cuisine_tags || 'N/A'}</span>`
                         }
                     </div>
                 </div>
@@ -439,11 +1296,792 @@
             const statusDiv = document.createElement('div');
             statusDiv.className = 'status error';
             statusDiv.textContent = message;
-            document.querySelector('.form-section').appendChild(statusDiv);
+            const formSection = document.querySelector('.form-section');
+            if (formSection) {
+                formSection.appendChild(statusDiv);
+                setTimeout(() => {
+                    statusDiv.remove();
+                }, 5000);
+            }
+        }
+        
+        // ===== TAB SWITCHING =====
+        function switchTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
             
-            setTimeout(() => {
-                statusDiv.remove();
-            }, 5000);
+            // Remove active class from all buttons
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Show selected tab
+            document.getElementById(`${tabName}-tab`).classList.add('active');
+            
+            // Add active class to clicked button
+            event.target.classList.add('active');
+            
+            // Load vendor data if switching to vendor tab
+            if (tabName === 'vendor') {
+                loadVendorData();
+            }
+        }
+        
+        // ===== VENDOR FUNCTIONS =====
+        // Mock vendor ID (in real app, this would come from authentication)
+        const MOCK_VENDOR_ID = 'user_001'; // John Doe owns truck_001
+        
+        // Load vendor dashboard data
+        // ===== MY ORDERS FUNCTIONS =====
+        async function loadMyOrders() {
+            const ordersContainer = document.getElementById('ordersContainer');
+            const name = document.getElementById('orderSearchName').value.trim();
+            const phone = document.getElementById('orderSearchPhone').value.trim();
+            
+            if (!name && !phone) {
+                ordersContainer.innerHTML = '<div class="status error">Please enter your name or phone number to search for orders.</div>';
+                return;
+            }
+            
+            try {
+                ordersContainer.innerHTML = '<div class="loading">Loading your orders...</div>';
+                
+                const params = new URLSearchParams();
+                if (name) params.append('customer_name', name);
+                if (phone) params.append('customer_phone', phone);
+                
+                const response = await fetch(`${API_BASE}/orders?${params.toString()}`);
+                
+                // Check if response is JSON
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    const text = await response.text();
+                    console.error('Non-JSON response:', text);
+                    throw new Error(`Server returned non-JSON response. Status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (!response.ok || !data.success) {
+                    throw new Error(data.error || 'Failed to load orders');
+                }
+                
+                if (data.data.length === 0) {
+                    ordersContainer.innerHTML = '<div class="status">No orders found. Make sure you entered the correct name or phone number.</div>';
+                    return;
+                }
+                
+                // Display orders
+                ordersContainer.innerHTML = data.data.map(order => {
+                    const orderDate = new Date(order.created_at).toLocaleString();
+                    const statusColors = {
+                        'pending': '#f39c12',
+                        'confirmed': '#3498db',
+                        'preparing': '#9b59b6',
+                        'ready': '#27ae60',
+                        'completed': '#2ecc71',
+                        'cancelled': '#e74c3c'
+                    };
+                    const statusColor = statusColors[order.status] || '#7f8c8d';
+                    
+                    return `
+                        <div class="truck-card" style="margin-bottom: 20px;">
+                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
+                                <div>
+                                    <h3 style="margin: 0 0 5px 0;">Order #${order.order_id.substring(0, 12)}...</h3>
+                                    <p style="color: #7f8c8d; margin: 0;">${order.truck_name}</p>
+                                </div>
+                                <div style="text-align: right;">
+                                    <span style="background: ${statusColor}; color: white; padding: 5px 10px; border-radius: 5px; font-size: 0.9em; text-transform: capitalize;">
+                                        ${order.status}
+                                    </span>
+                                    <p style="color: #7f8c8d; margin: 5px 0 0 0; font-size: 0.9em;">${orderDate}</p>
+                                </div>
+                            </div>
+                            
+                            <div style="border-top: 1px solid #ecf0f1; padding-top: 15px; margin-top: 15px;">
+                                <h4 style="margin: 0 0 10px 0; font-size: 1em;">Order Items:</h4>
+                                <div style="margin-bottom: 15px;">
+                                    ${order.items.map(item => `
+                                        <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #ecf0f1;">
+                                            <div>
+                                                <strong>${item.item_name}</strong>
+                                                <span style="color: #7f8c8d; font-size: 0.9em;"> × ${item.quantity}</span>
+                                            </div>
+                                            <div style="font-weight: bold;">$${parseFloat(item.subtotal).toFixed(2)}</div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                                <div style="display: flex; justify-content: space-between; padding-top: 10px; border-top: 2px solid #34495e; font-size: 1.2em; font-weight: bold;">
+                                    <span>Total:</span>
+                                    <span style="color: #27ae60;">$${parseFloat(order.total_amount).toFixed(2)}</span>
+                                </div>
+                            </div>
+                            
+                            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ecf0f1; font-size: 0.9em; color: #7f8c8d;">
+                                <p style="margin: 5px 0;">Customer: ${order.customer_name}</p>
+                                ${order.customer_phone ? `<p style="margin: 5px 0;">Phone: ${order.customer_phone}</p>` : ''}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('Error loading orders:', error);
+                ordersContainer.innerHTML = `<div class="status error">Error loading orders: ${error.message}</div>`;
+            }
+        }
+        
+        async function loadVendorData() {
+            try {
+                // Load all trucks and filter by owner
+                const response = await fetch(`${API_BASE}/trucks/all-with-location`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Filter trucks owned by this vendor (mock: user_001)
+                    const myTrucks = data.data.filter(truck => {
+                        // In real app, check truck.owner_user_id === currentUser.id
+                        // For demo, we'll show trucks that match our mock vendor
+                        return ['truck_001'].includes(truck.truck_id);
+                    });
+                    
+                    // Update statistics
+                    document.getElementById('vendorTruckCount').textContent = myTrucks.length;
+                    
+                    if (myTrucks.length > 0) {
+                        const avgRating = myTrucks.reduce((sum, truck) => sum + parseFloat(truck.avg_rating), 0) / myTrucks.length;
+                        document.getElementById('vendorAvgRating').textContent = avgRating.toFixed(1);
+                        
+                        // Mock review count (would come from database)
+                        document.getElementById('vendorReviewCount').textContent = myTrucks[0].reviews_count || 0;
+                    } else {
+                        document.getElementById('vendorAvgRating').textContent = '0.0';
+                        document.getElementById('vendorReviewCount').textContent = '0';
+                    }
+                    
+                    // Display trucks list
+                    displayVendorTrucks(myTrucks);
+                    
+                    // Populate truck select dropdown
+                    populateVendorTruckSelect(myTrucks);
+                }
+            } catch (error) {
+                console.error('Error loading vendor data:', error);
+                document.getElementById('vendorTrucksList').innerHTML = '<p class="status error">Error loading your trucks</p>';
+            }
+        }
+        
+        // Display vendor's trucks
+        function displayVendorTrucks(trucks) {
+            const container = document.getElementById('vendorTrucksList');
+            
+            if (trucks.length === 0) {
+                container.innerHTML = '<p>You haven\'t registered any food trucks yet. Use the form above to register one!</p>';
+                return;
+            }
+            
+            const trucksHTML = trucks.map(truck => `
+                <div class="truck-card" style="margin-bottom: 15px;">
+                    <div class="truck-name">${truck.name}</div>
+                    <div class="truck-info">
+                        <strong>ID:</strong> ${truck.truck_id}
+                    </div>
+                    <div class="truck-info">
+                        <strong>Price Tier:</strong> <span class="price-tier">${truck.price_tier}</span>
+                    </div>
+                    <div class="truck-info">
+                        <strong>Rating:</strong> <span class="rating">⭐ ${truck.avg_rating}</span>
+                    </div>
+                    <div class="truck-info">
+                        <strong>Status:</strong> ${truck.is_open_now ? '<span style="color: #27ae60;">🟢 Open</span>' : '<span style="color: #e74c3c;">🔴 Closed</span>'}
+                    </div>
+                    ${truck.address ? `
+                        <div class="truck-info">
+                            <strong>Location:</strong> <span class="location-info">${truck.address}</span>
+                        </div>
+                    ` : ''}
+                    <div class="cuisine-tags">
+                        ${Array.isArray(truck.cuisine_tags) ? 
+                            truck.cuisine_tags.map(tag => `<span class="tag">${tag}</span>`).join('') :
+                            `<span class="tag">${truck.cuisine_tags || 'N/A'}</span>`
+                        }
+                    </div>
+                </div>
+            `).join('');
+            
+            container.innerHTML = trucksHTML;
+        }
+        
+        // Populate vendor truck select dropdown
+        function populateVendorTruckSelect(trucks) {
+            const select = document.getElementById('vendorTruckSelect');
+            select.innerHTML = '<option value="">-- Select a truck --</option>';
+            
+            trucks.forEach(truck => {
+                const option = document.createElement('option');
+                option.value = truck.truck_id;
+                option.textContent = truck.name;
+                select.appendChild(option);
+            });
+        }
+        
+        // Handle vendor add truck form
+        document.addEventListener('DOMContentLoaded', function() {
+            const vendorForm = document.getElementById('vendorAddTruckForm');
+            if (vendorForm) {
+                vendorForm.addEventListener('submit', async function(e) {
+                    e.preventDefault();
+                    
+                    const formData = new FormData(e.target);
+                    const truckData = {
+                        name: formData.get('name'),
+                        cuisine_tags: formData.get('cuisine_tags').split(',').map(tag => tag.trim()).filter(tag => tag),
+                        price_tier: formData.get('price_tier'),
+                        avg_rating: 0.00 // New trucks start with 0 rating
+                    };
+                    
+                    try {
+                        const response = await fetch(`${API_BASE}/trucks`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(truckData)
+                        });
+                        
+                        const result = await response.json();
+                        
+                        if (result.success) {
+                            showSuccess('Food truck registered successfully!');
+                            e.target.reset();
+                            loadVendorData(); // Reload vendor data
+                        } else {
+                            showError('Failed to register food truck: ' + result.error);
+                        }
+                    } catch (error) {
+                        showError('Error registering food truck: ' + error.message);
+                    }
+                });
+            }
+            
+            // Handle vendor location form
+            const vendorLocationForm = document.getElementById('vendorLocationForm');
+            if (vendorLocationForm) {
+                vendorLocationForm.addEventListener('submit', async function(e) {
+                    e.preventDefault();
+                    const truckId = document.getElementById('vendorTruckSelect').value;
+                    const lat = parseFloat(document.getElementById('vendorLatitude').value);
+                    const lng = parseFloat(document.getElementById('vendorLongitude').value);
+                    
+                    if (!truckId) {
+                        showError('Please select a truck');
+                        return;
+                    }
+                    
+                    if (isNaN(lat) || isNaN(lng)) {
+                        showError('Please enter valid latitude and longitude');
+                        return;
+                    }
+                    
+                    // In a real app, this would call an API to update location_ping table
+                    // For demo, we'll just show a success message
+                    showSuccess(`Location updated for truck ${truckId} at (${lat}, ${lng})`);
+                    e.target.reset();
+                });
+            }
+        });
+        
+        // Get vendor's current location
+        function getVendorCurrentLocation() {
+            if (!navigator.geolocation) {
+                showError('Geolocation is not supported by your browser');
+                return;
+            }
+            
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    
+                    document.getElementById('vendorLatitude').value = lat.toFixed(4);
+                    document.getElementById('vendorLongitude').value = lng.toFixed(4);
+                    
+                    showSuccess('Location captured! Click "Update Location" to save.');
+                },
+                (error) => {
+                    showError('Error getting location: ' + error.message);
+                }
+            );
+        }
+        
+        // ===== TRUCK DETAILS MODAL =====
+        async function showTruckDetails(truckId) {
+            const modal = document.getElementById('truckModal');
+            const modalContent = document.getElementById('modalContent');
+            const modalTruckName = document.getElementById('modalTruckName');
+            
+            modal.classList.add('active');
+            modalContent.innerHTML = '<div class="loading">Loading details...</div>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/trucks/${truckId}/details`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    const truck = data.data;
+                    modalTruckName.textContent = truck.name;
+                    
+                    let html = '';
+                    
+                    // Add truck image at the top
+                    if (truck.image_url) {
+                        html += `<img src="${truck.image_url}" alt="${truck.name}" class="modal-truck-image" onerror="this.style.display='none'">`;
+                    }
+                    
+                    html += `
+                        <div class="detail-section">
+                            <h3>📋 Basic Information</h3>
+                            <div class="detail-item">
+                                <strong>Rating:</strong> <span class="rating">⭐ ${truck.avg_rating}</span> (${truck.reviews_count} reviews)
+                            </div>
+                            <div class="detail-item">
+                                <strong>Price Tier:</strong> <span class="price-tier">${truck.price_tier}</span>
+                            </div>
+                            <div class="detail-item">
+                                <strong>Status:</strong> ${truck.is_open_now ? '<span style="color: #27ae60;">🟢 Open Now</span>' : '<span style="color: #e74c3c;">🔴 Closed</span>'}
+                            </div>
+                            ${truck.address ? `
+                                <div class="detail-item">
+                                    <strong>📍 Address:</strong> ${truck.address}
+                                </div>
+                            ` : ''}
+                            ${truck.phone ? `
+                                <div class="detail-item">
+                                    <strong>📞 Phone:</strong> ${truck.phone}
+                                </div>
+                            ` : ''}
+                            <div class="detail-item">
+                                <strong>Cuisine Types:</strong> 
+                                ${Array.isArray(truck.cuisine_tags) ? 
+                                    truck.cuisine_tags.map(tag => `<span class="tag">${tag}</span>`).join(' ') :
+                                    `<span class="tag">${truck.cuisine_tags || 'N/A'}</span>`
+                                }
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Menu Section
+                    if (truck.menu && truck.menu.length > 0) {
+                        html += `
+                            <div class="detail-section">
+                                <h3>🍽️ Menu</h3>
+                                ${truck.menu.map(item => `
+                                    <div class="menu-item">
+                                        <div class="menu-item-name">${item.name || 'Unnamed Item'} <span class="menu-item-price">$${(item.price || 0).toFixed(2)}</span></div>
+                                        ${item.description ? `<div style="color: #7f8c8d; font-size: 0.9em; margin-top: 5px;">${item.description}</div>` : ''}
+                                        ${item.dietary_tags && item.dietary_tags.length > 0 ? `
+                                            <div style="margin-top: 5px;">
+                                                ${item.dietary_tags.map(tag => `<span class="tag" style="font-size: 0.8em;">${tag}</span>`).join(' ')}
+                                            </div>
+                                        ` : ''}
+                                        ${item.available === false ? '<div style="color: #e74c3c; margin-top: 5px;">⚠️ Currently Unavailable</div>' : ''}
+                                    </div>
+                                `).join('')}
+                            </div>
+                        `;
+                    } else {
+                        html += `
+                            <div class="detail-section">
+                                <h3>🍽️ Menu</h3>
+                                <p>No menu items available.</p>
+                            </div>
+                        `;
+                    }
+                    
+                    // Schedule Section
+                    if (truck.schedule && truck.schedule.length > 0) {
+                        html += `
+                            <div class="detail-section">
+                                <h3>🕐 Operating Hours</h3>
+                                ${truck.schedule.map(sched => `
+                                    <div class="schedule-item">
+                                        <div><strong>${sched.day_of_week}</strong> ${sched.typical_location ? `- ${sched.typical_location}` : ''}</div>
+                                        <div>${sched.start_time} - ${sched.end_time}</div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        `;
+                    } else {
+                        html += `
+                            <div class="detail-section">
+                                <h3>🕐 Operating Hours</h3>
+                                <p>No schedule information available.</p>
+                            </div>
+                        `;
+                    }
+                    
+                    // Reviews Section
+                    if (truck.reviews && truck.reviews.length > 0) {
+                        html += `
+                            <div class="detail-section">
+                                <h3>💬 Reviews</h3>
+                                ${truck.reviews.map(review => `
+                                    <div class="review-item">
+                                        <div class="review-header">
+                                            <div><strong>${review.user_name}</strong> <span class="review-rating">⭐ ${review.rating}/5</span></div>
+                                            <div style="color: #7f8c8d; font-size: 0.9em;">${new Date(review.created_at).toLocaleDateString()}</div>
+                                        </div>
+                                        ${review.text ? `<div style="margin-top: 8px;">${review.text}</div>` : ''}
+                                        ${review.upvotes > 0 || review.downvotes > 0 ? `
+                                            <div style="margin-top: 8px; color: #7f8c8d; font-size: 0.9em;">
+                                                👍 ${review.upvotes} | 👎 ${review.downvotes}
+                                            </div>
+                                        ` : ''}
+                                    </div>
+                                `).join('')}
+                            </div>
+                        `;
+                    } else {
+                        html += `
+                            <div class="detail-section">
+                                <h3>💬 Reviews</h3>
+                                <p>No reviews yet. Be the first to review!</p>
+                            </div>
+                        `;
+                    }
+                    
+                    // Action Buttons (Write Review & Order)
+                    html += `
+                        <div class="action-buttons">
+                            <button class="btn btn-review" onclick="showReviewForm('${truck.truck_id}')">✍️ Write Review</button>
+                            <button class="btn btn-order" onclick="showOrderForm('${truck.truck_id}')">🛒 Order Online</button>
+                        </div>
+                    `;
+                    
+                    // Hidden review form (initially)
+                    html += `
+                        <div id="reviewForm_${truck.truck_id}" class="review-form" style="display: none;">
+                            <h3>Write a Review</h3>
+                            <form id="reviewForm_${truck.truck_id}_form">
+                                <div class="form-group">
+                                    <label>Your Name:</label>
+                                    <input type="text" id="reviewName_${truck.truck_id}" required placeholder="Enter your name">
+                                </div>
+                                <div class="form-group">
+                                    <label>Rating:</label>
+                                    <div class="star-rating" id="starRating_${truck.truck_id}">
+                                        <span class="star" data-rating="1">⭐</span>
+                                        <span class="star" data-rating="2">⭐</span>
+                                        <span class="star" data-rating="3">⭐</span>
+                                        <span class="star" data-rating="4">⭐</span>
+                                        <span class="star" data-rating="5">⭐</span>
+                                    </div>
+                                    <input type="hidden" id="reviewRating_${truck.truck_id}" value="5" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Your Review:</label>
+                                    <textarea id="reviewText_${truck.truck_id}" rows="4" placeholder="Share your experience..." style="width: 100%; padding: 10px; border: 2px solid #bdc3c7; border-radius: 5px;"></textarea>
+                                </div>
+                                <button type="submit" class="btn btn-success">Submit Review</button>
+                                <button type="button" class="btn btn-secondary" onclick="hideReviewForm('${truck.truck_id}')" style="margin-left: 10px;">Cancel</button>
+                            </form>
+                        </div>
+                    `;
+                    
+                    // Hidden order form (initially)
+                    html += `
+                        <div id="orderForm_${truck.truck_id}" class="order-section" style="display: none;">
+                            <h3>🛒 Place Your Order</h3>
+                            <form id="orderForm_${truck.truck_id}_form">
+                                <div class="form-group">
+                                    <label>Your Name:</label>
+                                    <input type="text" id="orderName_${truck.truck_id}" required placeholder="Enter your name">
+                                </div>
+                                <div class="form-group">
+                                    <label>Phone Number (optional):</label>
+                                    <input type="tel" id="orderPhone_${truck.truck_id}" placeholder="(732) 555-0123">
+                                </div>
+                                <div style="margin-top: 20px;">
+                                    <h4 style="margin-bottom: 15px;">Select Items:</h4>
+                                    <div id="orderItems_${truck.truck_id}">
+                                        ${truck.menu && truck.menu.length > 0 ? truck.menu.map(item => `
+                                            <div class="order-item" data-item-id="${item.item_id}" data-price="${item.price || 0}">
+                                                <div>
+                                                    <strong>${item.name || 'Unnamed Item'}</strong>
+                                                    <div style="color: #7f8c8d; font-size: 0.9em;">$${(item.price || 0).toFixed(2)}</div>
+                                                </div>
+                                                <div class="quantity-controls">
+                                                    <button type="button" class="quantity-btn" data-truck-id="${truck.truck_id}" data-item-id="${item.item_id}" data-action="decrease" onclick="window.updateQuantity && window.updateQuantity('${truck.truck_id}', '${item.item_id}', -1); return false;">-</button>
+                                                    <input type="number" class="quantity-input" id="qty_${truck.truck_id}_${item.item_id}" value="0" min="0" readonly>
+                                                    <button type="button" class="quantity-btn" data-truck-id="${truck.truck_id}" data-item-id="${item.item_id}" data-action="increase" onclick="window.updateQuantity && window.updateQuantity('${truck.truck_id}', '${item.item_id}', 1); return false;">+</button>
+                                                </div>
+                                            </div>
+                                        `).join('') : '<p>No menu items available for ordering.</p>'}
+                                    </div>
+                                </div>
+                                <div id="orderSummary_${truck.truck_id}" class="order-summary">
+                                    <div class="order-total">Total: $<span id="orderTotal_${truck.truck_id}">0.00</span></div>
+                                    <button type="submit" class="btn btn-order" id="placeOrderBtn_${truck.truck_id}" style="width: 100%; margin-top: 10px;" disabled>Place Order</button>
+                                    <button type="button" class="btn btn-secondary" id="cancelOrderBtn_${truck.truck_id}" style="width: 100%; margin-top: 10px;">Cancel</button>
+                                </div>
+                            </form>
+                        </div>
+                    `;
+                    
+                    modalContent.innerHTML = html;
+                    
+                    // Initialize star rating
+                    initializeStarRating(truck.truck_id);
+                    
+                    // Initialize review form handler
+                    const reviewForm = document.getElementById(`reviewForm_${truck.truck_id}_form`);
+                    if (reviewForm) {
+                        reviewForm.addEventListener('submit', (e) => {
+                            e.preventDefault();
+                            submitReview(truck.truck_id);
+                        });
+                    }
+                    
+                    // Initialize order form handler
+                    const orderForm = document.getElementById(`orderForm_${truck.truck_id}_form`);
+                    if (orderForm) {
+                        orderForm.addEventListener('submit', (e) => {
+                            e.preventDefault();
+                            submitOrder(truck.truck_id);
+                        });
+                    }
+                    
+                    // Note: Quantity buttons use onclick handlers directly, no need for event delegation here
+                    
+                    // Initialize cancel button
+                    const cancelBtn = document.getElementById(`cancelOrderBtn_${truck.truck_id}`);
+                    if (cancelBtn) {
+                        cancelBtn.addEventListener('click', () => {
+                            hideOrderForm(truck.truck_id);
+                        });
+                    }
+                } else {
+                    modalContent.innerHTML = '<div class="status error">Failed to load truck details: ' + data.error + '</div>';
+                }
+            } catch (error) {
+                modalContent.innerHTML = '<div class="status error">Error loading details: ' + error.message + '</div>';
+            }
+        }
+        
+        function closeTruckModal() {
+            document.getElementById('truckModal').classList.remove('active');
+        }
+        
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('truckModal');
+            if (event.target === modal) {
+                closeTruckModal();
+            }
+        }
+        
+        // ===== REVIEW FUNCTIONS =====
+        function showReviewForm(truckId) {
+            document.getElementById(`reviewForm_${truckId}`).style.display = 'block';
+            document.getElementById(`orderForm_${truckId}`).style.display = 'none';
+        }
+        
+        function hideReviewForm(truckId) {
+            document.getElementById(`reviewForm_${truckId}`).style.display = 'none';
+        }
+        
+        function initializeStarRating(truckId) {
+            const stars = document.querySelectorAll(`#starRating_${truckId} .star`);
+            stars.forEach((star, index) => {
+                star.addEventListener('click', () => {
+                    const rating = index + 1;
+                    document.getElementById(`reviewRating_${truckId}`).value = rating;
+                    stars.forEach((s, i) => {
+                        if (i < rating) {
+                            s.classList.add('active');
+                        } else {
+                            s.classList.remove('active');
+                        }
+                    });
+                });
+            });
+            // Set default to 5 stars
+            stars.forEach(s => s.classList.add('active'));
+        }
+        
+        async function submitReview(truckId) {
+            const name = document.getElementById(`reviewName_${truckId}`).value;
+            const rating = parseInt(document.getElementById(`reviewRating_${truckId}`).value);
+            const text = document.getElementById(`reviewText_${truckId}`).value;
+            
+            if (!name || !rating) {
+                showError('Please provide your name and rating');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/trucks/${truckId}/reviews`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        user_name: name,
+                        rating: rating,
+                        text: text || null
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showSuccess('Thank you for your review!');
+                    hideReviewForm(truckId);
+                    
+                    // Clear form
+                    document.getElementById(`reviewName_${truckId}`).value = '';
+                    document.getElementById(`reviewText_${truckId}`).value = '';
+                    document.getElementById(`reviewRating_${truckId}`).value = '5';
+                    
+                    // Reload truck details to show new review
+                    setTimeout(() => showTruckDetails(truckId), 500);
+                } else {
+                    showError('Failed to submit review: ' + data.error);
+                }
+            } catch (error) {
+                showError('Error submitting review: ' + error.message);
+            }
+        }
+        
+        // ===== ORDER FUNCTIONS =====
+        // orderCart and updateQuantity are already defined at the top of the script
+        
+        function showOrderForm(truckId) {
+            const orderForm = document.getElementById(`orderForm_${truckId}`);
+            const reviewForm = document.getElementById(`reviewForm_${truckId}`);
+            
+            if (orderForm) {
+                orderForm.style.display = 'block';
+                // Note: Quantity buttons use onclick handlers directly, no need for event delegation
+            }
+            if (reviewForm) reviewForm.style.display = 'none';
+            
+            // Initialize cart for this truck if not exists
+            if (!orderCart[truckId]) {
+                orderCart[truckId] = {};
+            }
+            
+            // Reset and update summary
+            updateOrderSummary(truckId);
+        }
+        
+        function hideOrderForm(truckId) {
+            const orderForm = document.getElementById(`orderForm_${truckId}`);
+            if (orderForm) orderForm.style.display = 'none';
+            
+            // Reset cart
+            if (orderCart[truckId]) {
+                Object.keys(orderCart[truckId]).forEach(itemId => {
+                    const qtyInput = document.getElementById(`qty_${truckId}_${itemId}`);
+                    if (qtyInput) qtyInput.value = 0;
+                });
+                orderCart[truckId] = {};
+            }
+            
+            // Reset order summary
+            const orderTotal = document.getElementById(`orderTotal_${truckId}`);
+            const placeOrderBtn = document.getElementById(`placeOrderBtn_${truckId}`);
+            if (orderTotal) orderTotal.textContent = '0.00';
+            if (placeOrderBtn) placeOrderBtn.disabled = true;
+            
+            // Reset form
+            const orderName = document.getElementById(`orderName_${truckId}`);
+            const orderPhone = document.getElementById(`orderPhone_${truckId}`);
+            if (orderName) orderName.value = '';
+            if (orderPhone) orderPhone.value = '';
+        }
+        
+        function updateOrderSummary(truckId) {
+            const orderSummary = document.getElementById(`orderSummary_${truckId}`);
+            const placeOrderBtn = document.getElementById(`placeOrderBtn_${truckId}`);
+            if (!orderSummary) return;
+            
+            if (!orderCart[truckId] || Object.keys(orderCart[truckId]).length === 0) {
+                if (placeOrderBtn) placeOrderBtn.disabled = true;
+                return;
+            }
+            
+            let total = 0;
+            Object.keys(orderCart[truckId]).forEach(itemId => {
+                const quantity = orderCart[truckId][itemId];
+                // Find the item element within the current modal context
+                const itemElement = document.querySelector(`#orderForm_${truckId} [data-item-id="${itemId}"]`);
+                if (itemElement) {
+                    const price = parseFloat(itemElement.getAttribute('data-price')) || 0;
+                    total += price * quantity;
+                }
+            });
+            
+            const orderTotal = document.getElementById(`orderTotal_${truckId}`);
+            if (orderTotal) {
+                orderTotal.textContent = total.toFixed(2);
+            }
+            
+            // Enable/disable Place Order button based on whether there are items
+            if (placeOrderBtn) {
+                placeOrderBtn.disabled = total <= 0;
+            }
+        }
+        
+        async function submitOrder(truckId) {
+            if (!orderCart[truckId] || Object.keys(orderCart[truckId]).length === 0) {
+                showError('Please add items to your order');
+                return;
+            }
+            
+            const customerName = document.getElementById(`orderName_${truckId}`).value;
+            if (!customerName) {
+                showError('Please enter your name');
+                return;
+            }
+            
+            const customerPhone = document.getElementById(`orderPhone_${truckId}`).value;
+            
+            // Prepare order items
+            const items = Object.keys(orderCart[truckId]).map(itemId => ({
+                item_id: itemId,
+                quantity: orderCart[truckId][itemId]
+            }));
+            
+            try {
+                const response = await fetch(`${API_BASE}/trucks/${truckId}/orders`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        customer_name: customerName,
+                        customer_phone: customerPhone || null,
+                        items: items
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    const total = data.data.total;
+                    const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
+                    
+                    showSuccess(`Order placed successfully! Order #${data.data.order_id.substring(0, 12)}... ${itemCount} item(s) for $${total.toFixed(2)}`);
+                    hideOrderForm(truckId);
+                } else {
+                    showError('Failed to place order: ' + data.error);
+                }
+            } catch (error) {
+                showError('Error placing order: ' + error.message);
+            }
         }
     </script>
 </body>

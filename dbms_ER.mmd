@@ -1,0 +1,82 @@
+erDiagram
+  USER {
+    string user_id
+    string name
+    string email
+    string created_at
+  }
+
+  FOOD_TRUCK {
+    string truck_id
+    string owner_user_id
+    string name
+    string cuisine_tags
+    string price_tier
+    float avg_rating
+    int reviews_count
+    boolean is_open_now
+    string created_at
+  }
+
+  LOCATION_PING {
+    string ping_id
+    string truck_id
+    string loc
+    string status
+    string ping_time
+  }
+
+  MENU_VERSION {
+    string menu_id
+    string truck_id
+    int version_no
+    string effective_from
+    string effective_to
+    string notes
+  }
+
+  MENU_ITEM {
+    string item_id
+    string menu_id
+    string name
+    string description
+    float price
+    string dietary_tags
+    boolean available
+  }
+
+  REVIEW {
+    string review_id
+    string truck_id
+    string user_id
+    int rating
+    string text
+    string status
+    int upvotes
+    int downvotes
+    string created_at
+  }
+
+  FAVORITE {
+    string user_id
+    string truck_id
+    string saved_at
+  }
+
+  SCHEDULE {
+    string schedule_id
+    string truck_id
+    string day_of_week
+    string start_time
+    string end_time
+    string typical_location
+  }
+
+  USER ||--o{ REVIEW : writes
+  FOOD_TRUCK ||--o{ REVIEW : receives
+  USER ||--o{ FAVORITE : saves
+  FOOD_TRUCK ||--o{ FAVORITE : is_saved_by
+  FOOD_TRUCK ||--o{ LOCATION_PING : has
+  FOOD_TRUCK ||--o{ MENU_VERSION : publishes
+  MENU_VERSION ||--o{ MENU_ITEM : contains
+  FOOD_TRUCK ||--o{ SCHEDULE : operates_on
