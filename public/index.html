@@ -2083,6 +2083,56 @@
                 showError('Error placing order: ' + error.message);
             }
         }
+        async function submitOrder(truckId) {
+    const name = document.getElementById(`orderName_${truckId}`).value.trim();
+    const phone = document.getElementById(`orderPhone_${truckId}`).value.trim();
+
+    if (!name) {
+        alert("⚠️ Please enter your name before placing the order.");
+        return;
+    }
+
+    // Build menu item list
+    const items = Object.entries(orderCart[truckId] || {})
+        .filter(([_, qty]) => qty > 0)
+        .map(([itemId, qty]) => ({
+            item_id: itemId,
+            quantity: qty
+        }));
+
+    if (items.length === 0) {
+        alert("⚠️ Please select at least one item.");
+        return;
+    }
+
+    const payload = {
+        customer_name: name,
+        customer_phone: phone || null,
+        items: items
+    };
+
+    console.log("➡ Sending order:", payload);
+
+    try {
+        const res = await fetch(`${API_BASE}/trucks/${truckId}/orders`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+            alert("🎉 Order placed successfully!");
+            hideOrderForm(truckId);
+        } else {
+            alert("❌ Failed: " + data.error);
+        }
+    } catch (err) {
+        alert("💥 Network error: " + err.message);
+    }
+}
+
     </script>
 </body>
 </html>
