@@ -379,3 +379,4 @@ CREATE TRIGGER trigger_update_rating
     AFTER INSERT OR UPDATE OR DELETE ON review
     FOR EACH ROW
     EXECUTE FUNCTION update_truck_rating();
+
