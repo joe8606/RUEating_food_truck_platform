@@ -842,6 +842,8 @@
 
     <script>
         const API_BASE = 'http://localhost:3000';
+        // Mock vendor ID (in real app, this would come from authentication)
+        const MOCK_VENDOR_ID = 'user_001'; // John Doe owns truck_001
         
         // Define updateQuantity in global scope IMMEDIATELY
         // This must be defined before any HTML is generated that uses it
@@ -1330,9 +1332,6 @@
         }
         
         // ===== VENDOR FUNCTIONS =====
-        // Mock vendor ID (in real app, this would come from authentication)
-        const MOCK_VENDOR_ID = 'user_001'; // John Doe owns truck_001
-        
         // Load vendor dashboard data
         // ===== MY ORDERS FUNCTIONS =====
         async function loadMyOrders() {
@@ -1435,27 +1434,24 @@
         
         async function loadVendorData() {
             try {
-                // Load all trucks and filter by owner
-                const response = await fetch(`${API_BASE}/trucks/all-with-location`);
+                // Use the vendor-specific API endpoint
+                const vendorId = MOCK_VENDOR_ID; // 'user_001'
+                const response = await fetch(`${API_BASE}/vendors/${vendorId}/trucks`);
                 const data = await response.json();
                 
                 if (data.success) {
-                    // Filter trucks owned by this vendor (mock: user_001)
-                    const myTrucks = data.data.filter(truck => {
-                        // In real app, check truck.owner_user_id === currentUser.id
-                        // For demo, we'll show trucks that match our mock vendor
-                        return ['truck_001'].includes(truck.truck_id);
-                    });
+                    const myTrucks = data.data;
                     
                     // Update statistics
                     document.getElementById('vendorTruckCount').textContent = myTrucks.length;
                     
                     if (myTrucks.length > 0) {
-                        const avgRating = myTrucks.reduce((sum, truck) => sum + parseFloat(truck.avg_rating), 0) / myTrucks.length;
+                        const avgRating = myTrucks.reduce((sum, truck) => sum + parseFloat(truck.avg_rating || 0), 0) / myTrucks.length;
                         document.getElementById('vendorAvgRating').textContent = avgRating.toFixed(1);
                         
-                        // Mock review count (would come from database)
-                        document.getElementById('vendorReviewCount').textContent = myTrucks[0].reviews_count || 0;
+                        // Get total reviews count
+                        const totalReviews = myTrucks.reduce((sum, truck) => sum + (parseInt(truck.reviews_count) || 0), 0);
+                        document.getElementById('vendorReviewCount').textContent = totalReviews;
                     } else {
                         document.getElementById('vendorAvgRating').textContent = '0.0';
                         document.getElementById('vendorReviewCount').textContent = '0';
@@ -1469,7 +1465,7 @@
                 }
             } catch (error) {
                 console.error('Error loading vendor data:', error);
-                document.getElementById('vendorTrucksList').innerHTML = '<p class="status error">Error loading your trucks</p>';
+                document.getElementById('vendorTrucksList').innerHTML = '<p class="status error">Error loading your trucks: ' + error.message + '</p>';
             }
         }
         
@@ -1483,8 +1479,18 @@
             }
             
             const trucksHTML = trucks.map(truck => `
-                <div class="truck-card" style="margin-bottom: 15px;">
-                    <div class="truck-name">${truck.name}</div>
+                <div class="truck-card" style="margin-bottom: 15px; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
+                        <div class="truck-name" style="font-size: 1.3em; font-weight: bold;">${truck.name}</div>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn btn-secondary" style="padding: 5px 10px; font-size: 0.9em;" onclick="editTruckInfo('${truck.truck_id}')">✏️ Edit Info</button>
+                            <button class="btn btn-primary" style="padding: 5px 10px; font-size: 0.9em;" onclick="manageMenu('${truck.truck_id}')">📋 Manage Menu</button>
+                            <button class="btn btn-info" style="padding: 5px 10px; font-size: 0.9em;" onclick="updateTruckLocation('${truck.truck_id}')">📍 Update Location</button>
+                            <button class="btn ${truck.is_open_now ? 'btn-warning' : 'btn-success'}" style="padding: 5px 10px; font-size: 0.9em;" onclick="toggleTruckStatus('${truck.truck_id}', ${!truck.is_open_now})">
+                                ${truck.is_open_now ? '🔴 Close' : '🟢 Open'}
+                            </button>
+                        </div>
+                    </div>
                     <div class="truck-info">
                         <strong>ID:</strong> ${truck.truck_id}
                     </div>
@@ -1500,9 +1506,10 @@
                     ${truck.address ? `
                         <div class="truck-info">
                             <strong>Location:</strong> <span class="location-info">${truck.address}</span>
+                            ${truck.latitude && truck.longitude ? `(${truck.latitude.toFixed(4)}, ${truck.longitude.toFixed(4)})` : ''}
                         </div>
                     ` : ''}
-                    <div class="cuisine-tags">
+                    <div class="cuisine-tags" style="margin-top: 10px;">
                         ${Array.isArray(truck.cuisine_tags) ? 
                             truck.cuisine_tags.map(tag => `<span class="tag">${tag}</span>`).join('') :
                             `<span class="tag">${truck.cuisine_tags || 'N/A'}</span>`
@@ -1539,7 +1546,8 @@
                         name: formData.get('name'),
                         cuisine_tags: formData.get('cuisine_tags').split(',').map(tag => tag.trim()).filter(tag => tag),
                         price_tier: formData.get('price_tier'),
-                        avg_rating: 0.00 // New trucks start with 0 rating
+                        avg_rating: 0.00, // New trucks start with 0 rating
+                        owner_user_id: MOCK_VENDOR_ID // Add owner_user_id
                     };
                     
                     try {
@@ -1585,10 +1593,31 @@
                         return;
                     }
                     
-                    // In a real app, this would call an API to update location_ping table
-                    // For demo, we'll just show a success message
-                    showSuccess(`Location updated for truck ${truckId} at (${lat}, ${lng})`);
-                    e.target.reset();
+                    try {
+                        const response = await fetch(`${API_BASE}/trucks/${truckId}/location`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                latitude: lat,
+                                longitude: lng,
+                                source: 'manual'
+                            })
+                        });
+                        
+                        const result = await response.json();
+                        
+                        if (result.success) {
+                            showSuccess(`Location updated successfully for truck ${truckId} at (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
+                            e.target.reset();
+                            loadVendorData(); // Reload to show updated location
+                        } else {
+                            showError('Failed to update location: ' + result.error);
+                        }
+                    } catch (error) {
+                        showError('Error updating location: ' + error.message);
+                    }
                 });
             }
         });
@@ -1614,6 +1643,330 @@
                     showError('Error getting location: ' + error.message);
                 }
             );
+        }
+        
+        // Update truck location (called from button)
+        async function updateTruckLocation(truckId) {
+            const lat = prompt('Enter latitude:', '');
+            const lng = prompt('Enter longitude:', '');
+            
+            if (!lat || !lng) {
+                return;
+            }
+            
+            const latNum = parseFloat(lat);
+            const lngNum = parseFloat(lng);
+            
+            if (isNaN(latNum) || isNaN(lngNum)) {
+                showError('Invalid latitude or longitude');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/trucks/${truckId}/location`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        latitude: latNum,
+                        longitude: lngNum,
+                        source: 'manual'
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showSuccess(`Location updated successfully!`);
+                    loadVendorData();
+                } else {
+                    showError('Failed to update location: ' + result.error);
+                }
+            } catch (error) {
+                showError('Error updating location: ' + error.message);
+            }
+        }
+        
+        // Edit truck information
+        async function editTruckInfo(truckId) {
+            try {
+                // Get current truck info
+                const response = await fetch(`${API_BASE}/trucks/${truckId}`);
+                const data = await response.json();
+                
+                if (!data.success) {
+                    showError('Failed to load truck information');
+                    return;
+                }
+                
+                const truck = data.data;
+                
+                // Create edit form
+                const newName = prompt('Enter new truck name:', truck.name);
+                if (newName === null) return;
+                
+                const newCuisineTags = prompt('Enter cuisine tags (comma-separated):', 
+                    Array.isArray(truck.cuisine_tags) ? truck.cuisine_tags.join(', ') : truck.cuisine_tags || '');
+                if (newCuisineTags === null) return;
+                
+                const newPriceTier = prompt('Enter price tier ($, $$, $$$, $$$$):', truck.price_tier);
+                if (newPriceTier === null) return;
+                
+                // Update truck
+                const updateResponse = await fetch(`${API_BASE}/trucks/${truckId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: newName,
+                        cuisine_tags: newCuisineTags.split(',').map(tag => tag.trim()).filter(tag => tag),
+                        price_tier: newPriceTier
+                    })
+                });
+                
+                const updateResult = await updateResponse.json();
+                
+                if (updateResult.success) {
+                    showSuccess('Truck information updated successfully!');
+                    loadVendorData();
+                } else {
+                    showError('Failed to update truck: ' + updateResult.error);
+                }
+            } catch (error) {
+                showError('Error updating truck: ' + error.message);
+            }
+        }
+        
+        // Toggle truck status (open/closed)
+        async function toggleTruckStatus(truckId, newStatus) {
+            try {
+                const response = await fetch(`${API_BASE}/trucks/${truckId}/status`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        is_open_now: newStatus
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showSuccess(`Truck status updated to ${newStatus ? 'open' : 'closed'}`);
+                    loadVendorData();
+                } else {
+                    showError('Failed to update status: ' + result.error);
+                }
+            } catch (error) {
+                showError('Error updating status: ' + error.message);
+            }
+        }
+        
+        // Manage menu for a truck
+        async function manageMenu(truckId) {
+            try {
+                // Store truckId for later use
+                currentMenuTruckId = truckId;
+                
+                // Get truck details with menu
+                const response = await fetch(`${API_BASE}/trucks/${truckId}/details`);
+                const data = await response.json();
+                
+                if (!data.success) {
+                    showError('Failed to load menu');
+                    return;
+                }
+                
+                const truck = data.data;
+                const menuItems = truck.menu || [];
+                
+                // Create menu management modal
+                let menuHTML = `
+                    <div style="max-width: 800px; margin: 0 auto; padding: 20px;">
+                        <h2>📋 Manage Menu: ${truck.name}</h2>
+                        <div style="margin-bottom: 20px;">
+                            <button class="btn btn-success" onclick="addMenuItem('${truckId}')">➕ Add New Item</button>
+                        </div>
+                        <div style="max-height: 500px; overflow-y: auto;">
+                `;
+                
+                if (menuItems.length === 0) {
+                    menuHTML += '<p>No menu items yet. Click "Add New Item" to create one.</p>';
+                } else {
+                    menuHTML += '<table style="width: 100%; border-collapse: collapse;">';
+                    menuHTML += '<thead><tr style="background: #f5f5f5;"><th style="padding: 10px; text-align: left;">Name</th><th style="padding: 10px; text-align: left;">Price</th><th style="padding: 10px; text-align: left;">Available</th><th style="padding: 10px; text-align: left;">Actions</th></tr></thead><tbody>';
+                    
+                    menuItems.forEach(item => {
+                        menuHTML += `
+                            <tr style="border-bottom: 1px solid #ddd;">
+                                <td style="padding: 10px;">${item.name}</td>
+                                <td style="padding: 10px;">$${parseFloat(item.price).toFixed(2)}</td>
+                                <td style="padding: 10px;">${item.available ? '✅' : '❌'}</td>
+                                <td style="padding: 10px;">
+                                    <button class="btn btn-secondary" style="padding: 5px 10px; font-size: 0.9em;" onclick="editMenuItem('${item.item_id}', '${item.name}', ${item.price}, ${item.available})">✏️ Edit</button>
+                                    <button class="btn btn-danger" style="padding: 5px 10px; font-size: 0.9em;" onclick="deleteMenuItem('${item.item_id}', '${item.name}', '${truckId}')">🗑️ Delete</button>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                    
+                    menuHTML += '</tbody></table>';
+                }
+                
+                menuHTML += `
+                        </div>
+                        <div style="margin-top: 20px;">
+                            <button class="btn btn-secondary" onclick="closeMenuModal()">Close</button>
+                        </div>
+                    </div>
+                `;
+                
+                // Show in modal or create new modal
+                const modal = document.getElementById('truckModal') || createModal();
+                const modalContent = document.getElementById('modalContent');
+                modalContent.innerHTML = menuHTML;
+                modal.classList.add('active');
+                
+            } catch (error) {
+                showError('Error loading menu: ' + error.message);
+            }
+        }
+        
+        // Add new menu item
+        async function addMenuItem(truckId) {
+            const name = prompt('Enter item name:');
+            if (!name) return;
+            
+            const description = prompt('Enter item description (optional):', '');
+            const price = prompt('Enter price:', '');
+            if (!price || isNaN(parseFloat(price))) {
+                showError('Invalid price');
+                return;
+            }
+            
+            const dietaryTags = prompt('Enter dietary tags (comma-separated, optional):', '');
+            
+            try {
+                const response = await fetch(`${API_BASE}/trucks/${truckId}/menu/items`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: name,
+                        description: description || null,
+                        price: parseFloat(price),
+                        dietary_tags: dietaryTags ? dietaryTags.split(',').map(tag => tag.trim()).filter(tag => tag) : [],
+                        available: true
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showSuccess('Menu item added successfully!');
+                    manageMenu(truckId); // Reload menu
+                } else {
+                    showError('Failed to add menu item: ' + result.error);
+                }
+            } catch (error) {
+                showError('Error adding menu item: ' + error.message);
+            }
+        }
+        
+        // Store current truckId for menu management
+        let currentMenuTruckId = null;
+        
+        // Edit menu item
+        async function editMenuItem(itemId, currentName, currentPrice, currentAvailable) {
+            const newName = prompt('Enter new name:', currentName);
+            if (newName === null) return;
+            
+            const newPrice = prompt('Enter new price:', currentPrice);
+            if (newPrice === null || isNaN(parseFloat(newPrice))) {
+                showError('Invalid price');
+                return;
+            }
+            
+            const newAvailable = confirm('Is this item available?') ? true : false;
+            
+            try {
+                const response = await fetch(`${API_BASE}/menu-items/${itemId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: newName,
+                        price: parseFloat(newPrice),
+                        available: newAvailable
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showSuccess('Menu item updated successfully!');
+                    // Reload menu if we have the truckId
+                    if (currentMenuTruckId) {
+                        manageMenu(currentMenuTruckId);
+                    } else {
+                        loadVendorData();
+                    }
+                } else {
+                    showError('Failed to update menu item: ' + result.error);
+                }
+            } catch (error) {
+                showError('Error updating menu item: ' + error.message);
+            }
+        }
+        
+        // Delete menu item
+        async function deleteMenuItem(itemId, itemName, truckId) {
+            if (!confirm(`Are you sure you want to delete "${itemName}"?`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/menu-items/${itemId}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showSuccess('Menu item deleted successfully!');
+                    manageMenu(truckId); // Reload menu
+                } else {
+                    showError('Failed to delete menu item: ' + result.error);
+                }
+            } catch (error) {
+                showError('Error deleting menu item: ' + error.message);
+            }
+        }
+        
+        // Close menu modal
+        function closeMenuModal() {
+            const modal = document.getElementById('truckModal');
+            if (modal) {
+                modal.classList.remove('active');
+            }
+        }
+        
+        // Create modal if it doesn't exist
+        function createModal() {
+            let modal = document.getElementById('truckModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'truckModal';
+                modal.className = 'modal';
+                modal.innerHTML = '<div class="modal-content"><div id="modalContent"></div></div>';
+                document.body.appendChild(modal);
+            }
+            return modal;
         }
         
         // ===== TRUCK DETAILS MODAL =====

@@ -28,6 +28,18 @@ pool.on('error', (err) => {
   console.error('Database connection error:', err);
 });
 
+// Test database connection on startup
+async function testDatabaseConnection() {
+  try {
+    const result = await pool.query('SELECT NOW()');
+    console.log('Database connection test successful:', result.rows[0]);
+  } catch (error) {
+    console.error('Database connection test failed:', error);
+  }
+}
+
+testDatabaseConnection();
+
 // ===== GEOGRAPHIC UTILITIES =====
 // Haversine formula to calculate distance between two coordinates (in km)
 function calculateDistance(lat1, lon1, lat2, lon2) {
@@ -113,7 +125,8 @@ app.get('/trucks', async (req, res) => {
     console.error('Error fetching trucks:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch food trucks'
+      error: 'Failed to fetch food trucks',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
@@ -121,13 +134,20 @@ app.get('/trucks', async (req, res) => {
 // POST /trucks - Add a new food truck
 app.post('/trucks', async (req, res) => {
   try {
-    const { name, cuisine_tags, price_tier, avg_rating } = req.body;
+    const { name, cuisine_tags, price_tier, avg_rating, owner_user_id } = req.body;
     
     // Validation
     if (!name) {
       return res.status(400).json({
         success: false,
         error: 'Name is required'
+      });
+    }
+    
+    if (!owner_user_id) {
+      return res.status(400).json({
+        success: false,
+        error: 'owner_user_id is required'
       });
     }
     
@@ -138,11 +158,26 @@ app.post('/trucks', async (req, res) => {
       });
     }
     
+    // Verify that owner_user_id exists in user table
+    const userCheck = await pool.query(`
+      SELECT user_id FROM "user" WHERE user_id = $1
+    `, [owner_user_id]);
+    
+    if (userCheck.rows.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid owner_user_id: user does not exist'
+      });
+    }
+    
+    // Generate truck_id
+    const truckId = `truck_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
     const result = await pool.query(`
-      INSERT INTO food_truck (name, cuisine_tags, price_tier, avg_rating)
-      VALUES ($1, $2, $3, $4)
-      RETURNING truck_id, name, cuisine_tags, price_tier, avg_rating, created_at
-    `, [name, cuisine_tags || [], price_tier || '$$', avg_rating || 0.00]);
+      INSERT INTO food_truck (truck_id, owner_user_id, name, cuisine_tags, price_tier, avg_rating)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING truck_id, owner_user_id, name, cuisine_tags, price_tier, avg_rating, created_at
+    `, [truckId, owner_user_id, name, cuisine_tags || [], price_tier || '$$', avg_rating || 0.00]);
     
     res.status(201).json({
       success: true,
@@ -266,7 +301,8 @@ app.get('/trucks/all-with-location', async (req, res) => {
     console.error('Error fetching trucks with location:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch food trucks'
+      error: 'Failed to fetch food trucks',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
@@ -623,6 +659,793 @@ app.get('/orders', async (req, res) => {
   }
 });
 
+// POST /trucks/:id/location - Update truck location
+app.post('/trucks/:id/location', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { latitude, longitude, accuracy, source } = req.body;
+    
+    // Validation
+    if (!latitude || !longitude) {
+      return res.status(400).json({
+        success: false,
+        error: 'Latitude and longitude are required'
+      });
+    }
+    
+    const lat = parseFloat(latitude);
+    const lng = parseFloat(longitude);
+    
+    if (isNaN(lat) || isNaN(lng)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid latitude or longitude values'
+      });
+    }
+    
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      return res.status(400).json({
+        success: false,
+        error: 'Latitude must be between -90 and 90, longitude between -180 and 180'
+      });
+    }
+    
+    // Check if truck exists
+    const truckCheck = await pool.query(`
+      SELECT truck_id FROM food_truck WHERE truck_id = $1
+    `, [id]);
+    
+    if (truckCheck.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Food truck not found'
+      });
+    }
+    
+    // Set old active location pings to inactive
+    await pool.query(`
+      UPDATE location_ping 
+      SET status = 'inactive'
+      WHERE truck_id = $1 AND status = 'active'
+    `, [id]);
+    
+    // Generate ping_id
+    const pingId = `ping_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Insert new location ping
+    // Note: PostGIS trigger will automatically update geom field
+    const result = await pool.query(`
+      INSERT INTO location_ping (
+        ping_id, truck_id, latitude, longitude, 
+        accuracy, source, status, ping_time
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, 'active', NOW())
+      RETURNING ping_id, truck_id, latitude, longitude, accuracy, source, status, ping_time
+    `, [
+      pingId, 
+      id, 
+      lat, 
+      lng, 
+      accuracy ? parseFloat(accuracy) : null, 
+      source || 'manual'
+    ]);
+    
+    res.status(201).json({
+      success: true,
+      message: 'Location updated successfully',
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error updating location:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update location'
+    });
+  }
+});
+
+// GET /trucks/:id/orders - Get all orders for a specific truck
+app.get('/trucks/:id/orders', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, limit } = req.query;
+    
+    // Check if truck exists
+    const truckCheck = await pool.query(`
+      SELECT truck_id, name FROM food_truck WHERE truck_id = $1
+    `, [id]);
+    
+    if (truckCheck.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Food truck not found'
+      });
+    }
+    
+    // Build query
+    let query = `
+      SELECT 
+        o.order_id,
+        o.truck_id,
+        o.customer_name,
+        o.customer_phone,
+        o.total_amount,
+        o.status,
+        o.created_at,
+        o.updated_at,
+        ft.name as truck_name
+      FROM "order" o
+      JOIN food_truck ft ON o.truck_id = ft.truck_id
+      WHERE o.truck_id = $1
+    `;
+    const params = [id];
+    let paramCount = 2;
+    
+    if (status) {
+      query += ` AND o.status = $${paramCount}`;
+      params.push(status);
+      paramCount++;
+    }
+    
+    query += ` ORDER BY o.created_at DESC LIMIT $${paramCount}`;
+    params.push(parseInt(limit) || 50);
+    
+    const result = await pool.query(query, params);
+    
+    // Get order items for each order
+    const orders = await Promise.all(result.rows.map(async (order) => {
+      const itemsResult = await pool.query(`
+        SELECT 
+          item_id,
+          item_name,
+          quantity,
+          unit_price,
+          subtotal
+        FROM order_item
+        WHERE order_id = $1
+        ORDER BY item_name
+      `, [order.order_id]);
+      
+      return {
+        ...order,
+        items: itemsResult.rows
+      };
+    }));
+    
+    res.json({
+      success: true,
+      count: orders.length,
+      truck_id: id,
+      truck_name: truckCheck.rows[0].name,
+      data: orders
+    });
+  } catch (error) {
+    console.error('Error fetching truck orders:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch truck orders'
+    });
+  }
+});
+
+// GET /vendors/:vendor_id/orders - Get all orders for a vendor's trucks
+app.get('/vendors/:vendor_id/orders', async (req, res) => {
+  try {
+    const { vendor_id } = req.params;
+    const { status, limit } = req.query;
+    
+    // Check if vendor exists
+    const vendorCheck = await pool.query(`
+      SELECT user_id, name FROM "user" WHERE user_id = $1
+    `, [vendor_id]);
+    
+    if (vendorCheck.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Vendor not found'
+      });
+    }
+    
+    // Build query to get orders from all trucks owned by this vendor
+    let query = `
+      SELECT 
+        o.order_id,
+        o.truck_id,
+        o.customer_name,
+        o.customer_phone,
+        o.total_amount,
+        o.status,
+        o.created_at,
+        o.updated_at,
+        ft.name as truck_name
+      FROM "order" o
+      JOIN food_truck ft ON o.truck_id = ft.truck_id
+      WHERE ft.owner_user_id = $1
+    `;
+    const params = [vendor_id];
+    let paramCount = 2;
+    
+    if (status) {
+      query += ` AND o.status = $${paramCount}`;
+      params.push(status);
+      paramCount++;
+    }
+    
+    query += ` ORDER BY o.created_at DESC LIMIT $${paramCount}`;
+    params.push(parseInt(limit) || 50);
+    
+    const result = await pool.query(query, params);
+    
+    // Get order items for each order
+    const orders = await Promise.all(result.rows.map(async (order) => {
+      const itemsResult = await pool.query(`
+        SELECT 
+          item_id,
+          item_name,
+          quantity,
+          unit_price,
+          subtotal
+        FROM order_item
+        WHERE order_id = $1
+        ORDER BY item_name
+      `, [order.order_id]);
+      
+      return {
+        ...order,
+        items: itemsResult.rows
+      };
+    }));
+    
+    res.json({
+      success: true,
+      count: orders.length,
+      vendor_id: vendor_id,
+      vendor_name: vendorCheck.rows[0].name,
+      data: orders
+    });
+  } catch (error) {
+    console.error('Error fetching vendor orders:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch vendor orders'
+    });
+  }
+});
+
+// PUT /orders/:id/status - Update order status
+app.put('/orders/:id/status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    
+    // Validation
+    if (!status) {
+      return res.status(400).json({
+        success: false,
+        error: 'Status is required'
+      });
+    }
+    
+    const validStatuses = ['pending', 'confirmed', 'preparing', 'ready', 'completed', 'cancelled'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        error: `Status must be one of: ${validStatuses.join(', ')}`
+      });
+    }
+    
+    // Check if order exists
+    const orderCheck = await pool.query(`
+      SELECT order_id, status, truck_id 
+      FROM "order" 
+      WHERE order_id = $1
+    `, [id]);
+    
+    if (orderCheck.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Order not found'
+      });
+    }
+    
+    const currentStatus = orderCheck.rows[0].status;
+    
+    // Update order status
+    const result = await pool.query(`
+      UPDATE "order"
+      SET status = $1, updated_at = NOW()
+      WHERE order_id = $2
+      RETURNING order_id, truck_id, customer_name, customer_phone, total_amount, status, created_at, updated_at
+    `, [status, id]);
+    
+    // Get order items
+    const itemsResult = await pool.query(`
+      SELECT 
+        item_id,
+        item_name,
+        quantity,
+        unit_price,
+        subtotal
+      FROM order_item
+      WHERE order_id = $1
+      ORDER BY item_name
+    `, [id]);
+    
+    res.json({
+      success: true,
+      message: `Order status updated from ${currentStatus} to ${status}`,
+      data: {
+        ...result.rows[0],
+        items: itemsResult.rows
+      }
+    });
+  } catch (error) {
+    console.error('Error updating order status:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update order status'
+    });
+  }
+});
+
+// ===== MENU MANAGEMENT ENDPOINTS =====
+
+// POST /trucks/:id/menu/items - Create a new menu item
+app.post('/trucks/:id/menu/items', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, description, price, dietary_tags, available } = req.body;
+    
+    // Validation
+    if (!name || !price) {
+      return res.status(400).json({
+        success: false,
+        error: 'Name and price are required'
+      });
+    }
+    
+    const priceValue = parseFloat(price);
+    if (isNaN(priceValue) || priceValue < 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Price must be a valid positive number'
+      });
+    }
+    
+    // Check if truck exists
+    const truckCheck = await pool.query(`
+      SELECT truck_id FROM food_truck WHERE truck_id = $1
+    `, [id]);
+    
+    if (truckCheck.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Food truck not found'
+      });
+    }
+    
+    // Get current active menu version
+    const menuResult = await pool.query(`
+      SELECT menu_id, version_no
+      FROM menu_version
+      WHERE truck_id = $1 
+        AND (effective_to IS NULL OR effective_to > NOW())
+      ORDER BY effective_from DESC
+      LIMIT 1
+    `, [id]);
+    
+    if (menuResult.rows.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No active menu version found. Please create a menu version first.'
+      });
+    }
+    
+    const menuId = menuResult.rows[0].menu_id;
+    
+    // Generate item_id
+    const itemId = `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Insert menu item
+    const result = await pool.query(`
+      INSERT INTO menu_item (item_id, menu_id, name, description, price, dietary_tags, available)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING item_id, menu_id, name, description, price, dietary_tags, available, created_at
+    `, [
+      itemId,
+      menuId,
+      name,
+      description || null,
+      priceValue,
+      dietary_tags || [],
+      available !== undefined ? available : true
+    ]);
+    
+    res.status(201).json({
+      success: true,
+      message: 'Menu item created successfully',
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error creating menu item:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create menu item'
+    });
+  }
+});
+
+// PUT /menu-items/:id - Update a menu item
+app.put('/menu-items/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, description, price, dietary_tags, available } = req.body;
+    
+    // Check if menu item exists
+    const itemCheck = await pool.query(`
+      SELECT item_id, menu_id, name, description, price, dietary_tags, available
+      FROM menu_item
+      WHERE item_id = $1
+    `, [id]);
+    
+    if (itemCheck.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Menu item not found'
+      });
+    }
+    
+    // Build update query dynamically
+    const updates = [];
+    const values = [];
+    let paramCount = 1;
+    
+    if (name !== undefined) {
+      updates.push(`name = $${paramCount}`);
+      values.push(name);
+      paramCount++;
+    }
+    
+    if (description !== undefined) {
+      updates.push(`description = $${paramCount}`);
+      values.push(description);
+      paramCount++;
+    }
+    
+    if (price !== undefined) {
+      const priceValue = parseFloat(price);
+      if (isNaN(priceValue) || priceValue < 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'Price must be a valid positive number'
+        });
+      }
+      updates.push(`price = $${paramCount}`);
+      values.push(priceValue);
+      paramCount++;
+    }
+    
+    if (dietary_tags !== undefined) {
+      updates.push(`dietary_tags = $${paramCount}`);
+      values.push(Array.isArray(dietary_tags) ? dietary_tags : []);
+      paramCount++;
+    }
+    
+    if (available !== undefined) {
+      updates.push(`available = $${paramCount}`);
+      values.push(available);
+      paramCount++;
+    }
+    
+    if (updates.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No fields to update'
+      });
+    }
+    
+    values.push(id);
+    
+    const result = await pool.query(`
+      UPDATE menu_item
+      SET ${updates.join(', ')}
+      WHERE item_id = $${paramCount}
+      RETURNING item_id, menu_id, name, description, price, dietary_tags, available, created_at
+    `, values);
+    
+    res.json({
+      success: true,
+      message: 'Menu item updated successfully',
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error updating menu item:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update menu item'
+    });
+  }
+});
+
+// DELETE /menu-items/:id - Delete a menu item
+app.delete('/menu-items/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Check if menu item exists
+    const itemCheck = await pool.query(`
+      SELECT item_id, name FROM menu_item WHERE item_id = $1
+    `, [id]);
+    
+    if (itemCheck.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Menu item not found'
+      });
+    }
+    
+    // Delete menu item
+    await pool.query(`
+      DELETE FROM menu_item WHERE item_id = $1
+    `, [id]);
+    
+    res.json({
+      success: true,
+      message: `Menu item "${itemCheck.rows[0].name}" deleted successfully`
+    });
+  } catch (error) {
+    console.error('Error deleting menu item:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete menu item'
+    });
+  }
+});
+
+// ===== SCHEDULE MANAGEMENT ENDPOINTS =====
+
+// GET /trucks/:id/schedule - Get schedule for a truck
+app.get('/trucks/:id/schedule', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Check if truck exists
+    const truckCheck = await pool.query(`
+      SELECT truck_id, name FROM food_truck WHERE truck_id = $1
+    `, [id]);
+    
+    if (truckCheck.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Food truck not found'
+      });
+    }
+    
+    // Get schedule
+    const result = await pool.query(`
+      SELECT schedule_id, day_of_week, start_time, end_time, typical_location, created_at
+      FROM schedule
+      WHERE truck_id = $1
+      ORDER BY 
+        CASE day_of_week
+          WHEN 'Monday' THEN 1
+          WHEN 'Tuesday' THEN 2
+          WHEN 'Wednesday' THEN 3
+          WHEN 'Thursday' THEN 4
+          WHEN 'Friday' THEN 5
+          WHEN 'Saturday' THEN 6
+          WHEN 'Sunday' THEN 7
+        END
+    `, [id]);
+    
+    res.json({
+      success: true,
+      count: result.rows.length,
+      truck_id: id,
+      truck_name: truckCheck.rows[0].name,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching schedule:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch schedule'
+    });
+  }
+});
+
+// POST /trucks/:id/schedule - Create a schedule entry
+app.post('/trucks/:id/schedule', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { day_of_week, start_time, end_time, typical_location } = req.body;
+    
+    // Validation
+    if (!day_of_week || !start_time || !end_time) {
+      return res.status(400).json({
+        success: false,
+        error: 'day_of_week, start_time, and end_time are required'
+      });
+    }
+    
+    const validDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    if (!validDays.includes(day_of_week)) {
+      return res.status(400).json({
+        success: false,
+        error: `day_of_week must be one of: ${validDays.join(', ')}`
+      });
+    }
+    
+    // Check if truck exists
+    const truckCheck = await pool.query(`
+      SELECT truck_id FROM food_truck WHERE truck_id = $1
+    `, [id]);
+    
+    if (truckCheck.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Food truck not found'
+      });
+    }
+    
+    // Check if schedule already exists for this day
+    const existingSchedule = await pool.query(`
+      SELECT schedule_id FROM schedule
+      WHERE truck_id = $1 AND day_of_week = $2
+    `, [id, day_of_week]);
+    
+    if (existingSchedule.rows.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: `Schedule already exists for ${day_of_week}. Use PUT to update it.`
+      });
+    }
+    
+    // Generate schedule_id
+    const scheduleId = `schedule_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Insert schedule
+    const result = await pool.query(`
+      INSERT INTO schedule (schedule_id, truck_id, day_of_week, start_time, end_time, typical_location)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING schedule_id, truck_id, day_of_week, start_time, end_time, typical_location, created_at
+    `, [scheduleId, id, day_of_week, start_time, end_time, typical_location || null]);
+    
+    res.status(201).json({
+      success: true,
+      message: 'Schedule created successfully',
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error creating schedule:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create schedule'
+    });
+  }
+});
+
+// PUT /schedule/:id - Update a schedule entry
+app.put('/schedule/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { day_of_week, start_time, end_time, typical_location } = req.body;
+    
+    // Check if schedule exists
+    const scheduleCheck = await pool.query(`
+      SELECT schedule_id, truck_id, day_of_week, start_time, end_time, typical_location
+      FROM schedule
+      WHERE schedule_id = $1
+    `, [id]);
+    
+    if (scheduleCheck.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Schedule not found'
+      });
+    }
+    
+    // Build update query dynamically
+    const updates = [];
+    const values = [];
+    let paramCount = 1;
+    
+    if (day_of_week !== undefined) {
+      const validDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+      if (!validDays.includes(day_of_week)) {
+        return res.status(400).json({
+          success: false,
+          error: `day_of_week must be one of: ${validDays.join(', ')}`
+        });
+      }
+      updates.push(`day_of_week = $${paramCount}`);
+      values.push(day_of_week);
+      paramCount++;
+    }
+    
+    if (start_time !== undefined) {
+      updates.push(`start_time = $${paramCount}`);
+      values.push(start_time);
+      paramCount++;
+    }
+    
+    if (end_time !== undefined) {
+      updates.push(`end_time = $${paramCount}`);
+      values.push(end_time);
+      paramCount++;
+    }
+    
+    if (typical_location !== undefined) {
+      updates.push(`typical_location = $${paramCount}`);
+      values.push(typical_location);
+      paramCount++;
+    }
+    
+    if (updates.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No fields to update'
+      });
+    }
+    
+    values.push(id);
+    
+    const result = await pool.query(`
+      UPDATE schedule
+      SET ${updates.join(', ')}
+      WHERE schedule_id = $${paramCount}
+      RETURNING schedule_id, truck_id, day_of_week, start_time, end_time, typical_location, created_at
+    `, values);
+    
+    res.json({
+      success: true,
+      message: 'Schedule updated successfully',
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error updating schedule:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update schedule'
+    });
+  }
+});
+
+// DELETE /schedule/:id - Delete a schedule entry
+app.delete('/schedule/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Check if schedule exists
+    const scheduleCheck = await pool.query(`
+      SELECT schedule_id, day_of_week FROM schedule WHERE schedule_id = $1
+    `, [id]);
+    
+    if (scheduleCheck.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Schedule not found'
+      });
+    }
+    
+    // Delete schedule
+    await pool.query(`
+      DELETE FROM schedule WHERE schedule_id = $1
+    `, [id]);
+    
+    res.json({
+      success: true,
+      message: `Schedule for ${scheduleCheck.rows[0].day_of_week} deleted successfully`
+    });
+  } catch (error) {
+    console.error('Error deleting schedule:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete schedule'
+    });
+  }
+});
+
 // GET /trucks/:id - Get a specific food truck (must be after all specific routes)
 app.get('/trucks/:id', async (req, res) => {
   try {
@@ -659,6 +1482,142 @@ app.get('/trucks/:id', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to fetch food truck'
+    });
+  }
+});
+
+// PUT /trucks/:id/status - Toggle truck open/closed status
+app.put('/trucks/:id/status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { is_open_now } = req.body;
+    
+    // Validation
+    if (typeof is_open_now !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        error: 'is_open_now must be a boolean value (true or false)'
+      });
+    }
+    
+    // Check if truck exists
+    const truckCheck = await pool.query(`
+      SELECT truck_id, name, is_open_now FROM food_truck WHERE truck_id = $1
+    `, [id]);
+    
+    if (truckCheck.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Food truck not found'
+      });
+    }
+    
+    const currentStatus = truckCheck.rows[0].is_open_now;
+    
+    // Update status
+    const result = await pool.query(`
+      UPDATE food_truck
+      SET is_open_now = $1
+      WHERE truck_id = $2
+      RETURNING truck_id, name, is_open_now, created_at
+    `, [is_open_now, id]);
+    
+    res.json({
+      success: true,
+      message: `Truck status updated from ${currentStatus ? 'open' : 'closed'} to ${is_open_now ? 'open' : 'closed'}`,
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error updating truck status:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update truck status'
+    });
+  }
+});
+
+// PUT /trucks/:id - Update truck information
+app.put('/trucks/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, cuisine_tags, price_tier } = req.body;
+    
+    // Check if truck exists
+    const truckCheck = await pool.query(`
+      SELECT truck_id, owner_user_id, name, cuisine_tags, price_tier
+      FROM food_truck
+      WHERE truck_id = $1
+    `, [id]);
+    
+    if (truckCheck.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Food truck not found'
+      });
+    }
+    
+    // Build update query dynamically
+    const updates = [];
+    const values = [];
+    let paramCount = 1;
+    
+    if (name !== undefined) {
+      if (!name || name.trim() === '') {
+        return res.status(400).json({
+          success: false,
+          error: 'Name cannot be empty'
+        });
+      }
+      updates.push(`name = $${paramCount}`);
+      values.push(name.trim());
+      paramCount++;
+    }
+    
+    if (cuisine_tags !== undefined) {
+      updates.push(`cuisine_tags = $${paramCount}`);
+      values.push(Array.isArray(cuisine_tags) ? cuisine_tags : []);
+      paramCount++;
+    }
+    
+    if (price_tier !== undefined) {
+      if (!['$', '$$', '$$$', '$$$$'].includes(price_tier)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Price tier must be one of: $, $$, $$$, $$$$'
+        });
+      }
+      updates.push(`price_tier = $${paramCount}`);
+      values.push(price_tier);
+      paramCount++;
+    }
+    
+    if (updates.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No fields to update'
+      });
+    }
+    
+    values.push(id);
+    
+    // Update truck
+    const result = await pool.query(`
+      UPDATE food_truck
+      SET ${updates.join(', ')}
+      WHERE truck_id = $${paramCount}
+      RETURNING truck_id, owner_user_id, name, cuisine_tags, price_tier, avg_rating, reviews_count, is_open_now, created_at
+    `, values);
+    
+    res.json({
+      success: true,
+      message: 'Food truck updated successfully',
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error updating truck:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update food truck'
     });
   }
 });
@@ -774,6 +1733,76 @@ app.get('/trucks/:id/details', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to fetch food truck details'
+    });
+  }
+});
+
+// GET /vendors/:vendor_id/trucks - Get all trucks owned by a vendor
+app.get('/vendors/:vendor_id/trucks', async (req, res) => {
+  try {
+    const { vendor_id } = req.params;
+    
+    // Check if vendor exists
+    const vendorCheck = await pool.query(`
+      SELECT user_id, name FROM "user" WHERE user_id = $1
+    `, [vendor_id]);
+    
+    if (vendorCheck.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Vendor not found'
+      });
+    }
+    
+    // Get all trucks owned by this vendor
+    const result = await pool.query(`
+      SELECT 
+        truck_id, 
+        owner_user_id, 
+        name, 
+        cuisine_tags, 
+        price_tier, 
+        avg_rating, 
+        reviews_count, 
+        is_open_now, 
+        created_at
+      FROM food_truck 
+      WHERE owner_user_id = $1
+      ORDER BY created_at DESC
+    `, [vendor_id]);
+    
+    // Get latest location for each truck
+    const trucksWithLocation = await Promise.all(result.rows.map(async (truck) => {
+      const locationResult = await pool.query(`
+        SELECT latitude, longitude, ping_time, status
+        FROM location_ping
+        WHERE truck_id = $1 AND status = 'active'
+        ORDER BY ping_time DESC
+        LIMIT 1
+      `, [truck.truck_id]);
+      
+      if (locationResult.rows.length > 0) {
+        const loc = locationResult.rows[0];
+        truck.latitude = parseFloat(loc.latitude);
+        truck.longitude = parseFloat(loc.longitude);
+        truck.location_updated_at = loc.ping_time;
+      }
+      
+      return truck;
+    }));
+    
+    res.json({
+      success: true,
+      count: trucksWithLocation.length,
+      vendor_id: vendor_id,
+      vendor_name: vendorCheck.rows[0].name,
+      data: trucksWithLocation
+    });
+  } catch (error) {
+    console.error('Error fetching vendor trucks:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch vendor trucks'
     });
   }
 });
