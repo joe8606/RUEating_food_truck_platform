@@ -1,6 +1,6 @@
 # RUEating - Food Truck Discovery Platform
 
-A containerized Node.js + PostgreSQL API for the RUEating food truck discovery and recommendation platform.
+RUEating is a food truck discovery and ordering platform designed to connect customers with local food trucks and enable vendors to manage their operations digitally. The system provides APIs for discovering nearby food trucks, browsing menus, placing orders, managing schedules, and tracking vendor activity.
 
 ## Quick Start
 
